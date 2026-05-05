@@ -6,6 +6,38 @@ import { prisma } from '../../../lib/prisma';
 import { logger } from '../../../lib/logger';
 import type { Prisma } from '../../../generated/prisma';
 
+export async function GET(_req: Request): Promise<NextResponse> {
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    const rows = await prisma.workflow.findMany({
+      where: { userId },
+      orderBy: { updatedAt: 'desc' },
+      select: {
+        id: true,
+        name: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    const workflows = rows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    }));
+
+    return NextResponse.json({ workflows });
+  } catch (err) {
+    logger.error({ err, userId }, 'Failed to list workflows');
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
 export async function POST(req: Request): Promise<NextResponse> {
   const { userId } = await auth();
   if (!userId) {
