@@ -176,7 +176,11 @@ Expected: `layout.tsx  page.tsx  globals.css  favicon.ico` (or similar).
 
 Open `tsconfig.json`. The `compilerOptions.strict` field must be `true`. If the scaffolder didn't set it, set it now.
 
-**Step 4: Smoke-test the scaffold**
+**Step 4: Rename `package.json` `name` field**
+
+Set `package.json` `"name"` from the directory-derived default to `"nextflow"` so the project identifies itself consistently across `package-lock.json`, npm output, and any later workspace references.
+
+**Step 5: Smoke-test the scaffold**
 
 ```bash
 npm run build
@@ -184,7 +188,7 @@ npm run build
 
 Expected: Build succeeds with no errors. Warning about no app routes is fine.
 
-**Step 5: Commit**
+**Step 6: Commit**
 
 ```bash
 git add .
