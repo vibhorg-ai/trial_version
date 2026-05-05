@@ -1,0 +1,8 @@
+.next/
+node_modules/
+coverage/
+playwright-report/
+test-results/
+.trigger/
+package-lock.json
+docs/

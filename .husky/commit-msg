@@ -1,0 +1,24 @@
+#!/usr/bin/env sh
+# Strips the Cursor Co-authored-by trailer that Cursor injects automatically.
+# The implementation plan's spec-compliance reviews compare commit messages
+# verbatim, and the auto-injected trailer was not in any task's spec.
+#
+# This hook lives under .husky/ because Husky redirects core.hooksPath
+# away from .git/hooks/. It is committed to the repo so every clone keeps
+# the policy.
+
+msg_file="$1"
+tmp_file="${msg_file}.stripped"
+
+awk '
+  /^Co-authored-by: Cursor <cursoragent@cursor\.com>$/ { skipped = 1; next }
+  { lines[NR] = $0; n = NR }
+  END {
+    if (skipped) {
+      while (n > 0 && lines[n] == "") { n-- }
+    }
+    for (i = 1; i <= n; i++) print lines[i]
+  }
+' "$msg_file" > "$tmp_file"
+
+mv "$tmp_file" "$msg_file"
