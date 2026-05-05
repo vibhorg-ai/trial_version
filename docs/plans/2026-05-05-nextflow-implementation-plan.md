@@ -384,7 +384,14 @@ import { PrismaClient } from '@/generated/prisma';
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 
 export const prisma =
-  globalForPrisma.prisma ?? new PrismaClient({ log: ['error', 'warn'] });
+  globalForPrisma.prisma ??
+  new PrismaClient({
+    adapter: new PrismaNeon({ connectionString: process.env.DATABASE_URL! }),
+    log: ['error', 'warn'],
+  });
+// NOTE: Prisma 7's "client" engine requires a database driver adapter.
+// We use @prisma/adapter-neon which speaks Neon's serverless protocol over
+// HTTP/WebSocket, which is the recommended choice for Vercel + Neon.
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
 ```
