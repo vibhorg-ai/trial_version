@@ -6,7 +6,7 @@
 
 **Architecture:** Next.js (App Router) frontend with Zustand-driven React Flow canvas; Clerk-gated API routes persist workflows and runs to Postgres via Prisma; a single root Trigger.dev v4 orchestrator task per run walks the DAG with a ready-set wave-walker that fans out child tasks (Crop Image, Gemini) the moment their direct upstreams complete; the browser subscribes to Trigger.dev Realtime for live glow + outputs.
 
-**Tech Stack:** Next.js 15 (App Router) · TypeScript strict · PostgreSQL (Neon) · Prisma · Clerk · React Flow · Trigger.dev v4 · Translodit · FFmpeg via Trigger.dev · Tailwind · Zustand (immer) · Zod · `@google/generative-ai` · Lucide React · Vitest · Playwright · Sentry · Pino.
+**Tech Stack:** Next.js 15 (App Router) · TypeScript strict · PostgreSQL (Neon) · Prisma · Clerk · React Flow · Trigger.dev v4 · Transloadit · FFmpeg via Trigger.dev · Tailwind · Zustand (immer) · Zod · `@google/generative-ai` · Lucide React · Vitest · Playwright · Sentry · Pino.
 
 **Design doc:** `docs/plans/2026-05-05-nextflow-design.md` (read this first; it has all locked decisions).
 
@@ -1214,7 +1214,7 @@ git push origin main
 - Renders dynamic field list.
 - Add-field popover supports `text_field` and `image_field`.
 - Each field has output handle.
-- text_field renders textarea; image_field renders Translodit upload widget (stub).
+- text_field renders textarea; image_field renders Transloadit upload widget (stub).
 
 **Step 2 – 5:** TDD cycle.
 
@@ -1300,13 +1300,13 @@ Pass `nodeTypes` and `edgeTypes` to React Flow.
 
 ---
 
-### Task 7.8: Translodit upload widget for image_field (TDD)
+### Task 7.8: Transloadit upload widget for image_field (TDD)
 
 **Files:**
-- Create: `src/components/canvas/nodes/TransloditUpload.tsx`
-- Create: `src/lib/translodit.ts` (signing helpers)
-- Create: `src/app/api/translodit/sign/route.ts`
-- Create: `src/components/canvas/nodes/__tests__/TransloditUpload.test.tsx`
+- Create: `src/components/canvas/nodes/TransloaditUpload.tsx`
+- Create: `src/lib/transloadit.ts` (signing helpers)
+- Create: `src/app/api/transloadit/sign/route.ts`
+- Create: `src/components/canvas/nodes/__tests__/TransloaditUpload.test.tsx`
 
 Use `@uppy/transloadit` with the Dashboard plugin (or Uppy minimal mode). Server route signs Auth params; client uploads and receives final CDN URL.
 
@@ -1314,7 +1314,7 @@ Use `@uppy/transloadit` with the Dashboard plugin (or Uppy minimal mode). Server
 
 **Step 2 – 5:** TDD cycle.
 
-**Commit:** `feat(canvas): add Translodit image upload for image_field`
+**Commit:** `feat(canvas): add Transloadit image upload for image_field`
 
 ---
 
@@ -1379,7 +1379,7 @@ Define `NodeOutput`, `CropTaskPayload`, `CropTaskResult`, `GeminiTaskPayload`, `
 **Step 1: Failing tests:**
 - Task awaits ≥30 seconds (assert via real `Date.now()`).
 - FFmpeg invocation produces a cropped image at expected dimensions (use a fixture image).
-- Output is a Translodit CDN URL.
+- Output is a Transloadit CDN URL.
 
 **Step 2 – 5:** TDD cycle. Use `wait.for({ seconds: 30 })`. Use Trigger.dev's `ffmpeg` binary path to run the crop.
 
@@ -1757,7 +1757,7 @@ Cover: project overview, tech stack, local setup steps, environment variables, t
    - Auth flow.
    - Dashboard create/open/rename/delete.
    - Building a workflow with all 4 node types.
-   - Translodit upload inside Request-Inputs `image_field`.
+   - Transloadit upload inside Request-Inputs `image_field`.
    - Running the sample workflow end-to-end with visible pulsating glow on every executing node (parallel siblings glowing simultaneously, Crop's 30s delay visible).
    - Single-node + multi-select runs.
    - History panel with all run types + node-level expand.

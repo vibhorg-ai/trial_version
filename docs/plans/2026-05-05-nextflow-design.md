@@ -15,7 +15,7 @@ Three pages exist and only three: Clerk sign-in/up, dashboard, workflow canvas. 
 
 ## 2. Locked stack
 
-Next.js (App Router) · TypeScript strict · PostgreSQL on Neon · Prisma · Clerk · React Flow · Trigger.dev v4 · Translodit · FFmpeg via Trigger.dev · Tailwind · Zustand · Zod · `@google/generative-ai` · Lucide React.
+Next.js (App Router) · TypeScript strict · PostgreSQL on Neon · Prisma · Clerk · React Flow · Trigger.dev v4 · Transloadit · FFmpeg via Trigger.dev · Tailwind · Zustand · Zod · `@google/generative-ai` · Lucide React.
 
 Trigger.dev v4 specifically (not v3 — v3 sunsets July 1, 2026).
 
@@ -57,7 +57,7 @@ nextflow/
 │   │   │   ├── workflows/route.ts
 │   │   │   ├── workflows/[id]/route.ts
 │   │   │   ├── workflows/[id]/runs/route.ts
-│   │   │   └── translodit/sign/route.ts
+│   │   │   └── transloadit/sign/route.ts
 │   │   ├── layout.tsx
 │   │   └── globals.css
 │   ├── components/
@@ -70,7 +70,7 @@ nextflow/
 │   │   ├── dag/
 │   │   ├── prisma.ts
 │   │   ├── clerk.ts
-│   │   ├── translodit.ts
+│   │   ├── transloadit.ts
 │   │   └── schemas/
 │   └── trigger/
 │       ├── orchestrator.ts
@@ -245,7 +245,7 @@ The two key implementation choices:
 
 ### 6.3 Child tasks
 
-**`cropImageTask`** — `await wait.for({ seconds: 30 })` first (mandatory), then FFmpeg crop via Trigger.dev's `ffmpeg` build extension. Output stored on Translodit for stable CDN URLs.
+**`cropImageTask`** — `await wait.for({ seconds: 30 })` first (mandatory), then FFmpeg crop via Trigger.dev's `ffmpeg` build extension. Output stored on Transloadit for stable CDN URLs.
 
 **`geminiTask`** — `GoogleGenerativeAI` from `@google/generative-ai`, `model.generateContent(parts)` (complete, not streaming), returns `{ kind: "text", text }`. Vision images attached as inline `Part`s.
 
@@ -281,7 +281,7 @@ Same orchestrator, parameterized via `scope` + `selectedNodeIds`:
 | Browser refresh during run | Page-load fetches latest `WorkflowRun`; if RUNNING, re-subscribe by `triggerRunId`. |
 | Two users open same workflow | Both subscribe to the same `triggerRunId`. Edits are last-write-wins. Real-time collaborative editing is out of scope. |
 | Gemini 429 / rate-limit | Trigger.dev retry config handles transient 429s; persistent rate-limits surface as a clean FAILED node. |
-| Translodit signed URL expiry | Outputs stored via Translodit's "store" step, producing long-lived `cdn.translodit.com` URLs. No expiry concern. |
+| Transloadit signed URL expiry | Outputs stored via Transloadit's "store" step, served via Transloadit Smart CDN (`<workspace>.tlcdn.com`) URLs. No expiry concern. |
 | User edits workflow during a run | Orchestrator already loaded `Workflow.graph` at run-start; works off the snapshot. Subsequent edits don't affect the in-flight run. |
 
 ## 7. Client state (Zustand)
@@ -343,7 +343,7 @@ Shared base shell handles:
 - **Node-type icon** (Lucide React).
 - **Delete button** in kebab menu, hidden for Request-Inputs and Response.
 
-**RequestInputsNode:** dynamic field list. Each field row: name input, type indicator, output handle on right, manual entry (textarea or Translodit upload widget). "Add field" popover with type selector.
+**RequestInputsNode:** dynamic field list. Each field row: name input, type indicator, output handle on right, manual entry (textarea or Transloadit upload widget). "Add field" popover with type selector.
 
 **CropImageNode:** Input Image handle (required) + manual X/Y/W/H percentage inputs (default 0/0/100/100). Manual fields grey out when corresponding input is connected. Output Image handle.
 
@@ -374,7 +374,7 @@ Marketing/landing/pricing pages (forbidden by brief) · functional Settings page
 1. Neon — `DATABASE_URL` (pooled) + `DIRECT_URL` (for migrations).
 2. Clerk — application with email + Google providers; publishable + secret keys.
 3. Google AI Studio — `GOOGLE_AI_API_KEY`.
-4. Translodit — workspace + Auth Key/Secret + two Templates (upload + crop).
+4. Transloadit — workspace + Auth Key/Secret + two Templates (upload + crop).
 5. Trigger.dev v4 — project + secret key + project ref.
 6. Vercel — project linked to GitHub repo (last, day 3).
 
@@ -392,10 +392,10 @@ NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
 NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL=/dashboard
 NEXT_PUBLIC_CLERK_SIGN_UP_FALLBACK_REDIRECT_URL=/dashboard
 GOOGLE_AI_API_KEY=
-TRANSLODIT_AUTH_KEY=
-TRANSLODIT_AUTH_SECRET=
-TRANSLODIT_TEMPLATE_UPLOAD=
-TRANSLODIT_TEMPLATE_CROP=
+TRANSLOADIT_AUTH_KEY=
+TRANSLOADIT_AUTH_SECRET=
+TRANSLOADIT_TEMPLATE_UPLOAD=
+TRANSLOADIT_TEMPLATE_CROP=
 TRIGGER_SECRET_KEY=
 TRIGGER_PROJECT_REF=
 ```
@@ -437,7 +437,7 @@ LinkedIn URL is hardcoded in `AttributionLog`, not env-driven.
 16. Selective execution (single-node, multi-select).
 17. History panel with node-level expand.
 18. JSON export/import (Zod-validated import).
-19. Translodit upload widget for `image_field`.
+19. Transloadit upload widget for `image_field`.
 20. Sample workflow seeding helper.
 21. Visual-parity polish pass against `try.galaxy.ai/clone`.
 22. Vercel + Trigger.dev deploy. Smoke-test on prod.
@@ -470,7 +470,7 @@ LinkedIn URL is hardcoded in `AttributionLog`, not env-driven.
 - NodePicker: tabs, search, only-functional-cards-clickable.
 - HistoryPanel: list rendering, expand/collapse, badge colors.
 - RunButton + RunMenu: enabled/disabled states by `selectedNodeIds`.
-- Translodit upload: file → progress → preview → URL piped to `image_field`.
+- Transloadit upload: file → progress → preview → URL piped to `image_field`.
 
 **API integration (Vitest + Neon test branch):**
 - Every API route: unauthenticated (401), wrong-user (404 — never leak existence), valid (happy path), Zod-invalid (400 with field-level errors).
@@ -562,4 +562,4 @@ Implemented as `<AttributionLog />` client component mounted in `app/layout.tsx`
 - Lighthouse scores ≥ 90 across all four categories on the canvas page.
 - Private GitHub repo shared with `bluerocketinfo@gmail.com`.
 - Live Vercel URL.
-- 3–5 minute demo video covering: auth flow, dashboard CRUD, building a workflow with all 4 node types, Translodit upload inside `image_field`, full sample workflow run with visible glow, single-node + multi-select runs, history panel with node-level expand, JSON export/import.
+- 3–5 minute demo video covering: auth flow, dashboard CRUD, building a workflow with all 4 node types, Transloadit upload inside `image_field`, full sample workflow run with visible glow, single-node + multi-select runs, history panel with node-level expand, JSON export/import.
