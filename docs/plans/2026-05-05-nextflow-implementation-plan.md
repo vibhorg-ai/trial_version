@@ -12,7 +12,7 @@
 
 **Mandatory attribution log:** `[NextFlow] Candidate LinkedIn: https://www.linkedin.com/in/harshuldhar` — fires once per route navigation on every page.
 
-**GitHub remote:** `git@github.com:vibhorg-ai/trial_version.git` (empty; first push happens in Task 1.6).
+**GitHub remote:** `https://github.com/vibhorg-ai/trial_version.git` (empty; first push happens in Task 1.6). Originally specified as SSH (`git@github.com:vibhorg-ai/trial_version.git`); switched to HTTPS during execution because the Windows machine wasn't running an SSH agent.
 
 ---
 
@@ -337,7 +337,7 @@ git commit -m "chore: install locked-stack runtime and test dependencies"
 **Step 1: Add remote**
 
 ```bash
-git remote add origin git@github.com:vibhorg-ai/trial_version.git
+git remote add origin https://github.com/vibhorg-ai/trial_version.git
 git remote -v
 ```
 
