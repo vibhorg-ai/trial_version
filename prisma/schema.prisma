@@ -1,0 +1,82 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+enum RunStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  PARTIAL
+  CANCELLED
+}
+
+enum RunScope {
+  FULL
+  PARTIAL
+  SINGLE
+}
+
+enum NodeStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+  SKIPPED
+}
+
+model Workflow {
+  id        String        @id @default(cuid())
+  userId    String
+  name      String
+  graph     Json
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  runs      WorkflowRun[]
+
+  @@index([userId, updatedAt(sort: Desc)])
+}
+
+model WorkflowRun {
+  id              String    @id @default(cuid())
+  workflowId      String
+  workflow        Workflow  @relation(fields: [workflowId], references: [id], onDelete: Cascade)
+  userId          String
+  scope           RunScope
+  selectedNodeIds String[]
+  status          RunStatus @default(PENDING)
+  triggerRunId    String?
+  inputsSnapshot  Json
+  startedAt       DateTime  @default(now())
+  finishedAt      DateTime?
+  durationMs      Int?
+  errorMessage    String?
+  nodeRuns        NodeRun[]
+
+  @@index([workflowId, startedAt(sort: Desc)])
+  @@index([userId])
+}
+
+model NodeRun {
+  id            String      @id @default(cuid())
+  workflowRunId String
+  workflowRun   WorkflowRun @relation(fields: [workflowRunId], references: [id], onDelete: Cascade)
+  nodeId        String
+  nodeType      String
+  status        NodeStatus  @default(PENDING)
+  inputs        Json?
+  output        Json?
+  errorMessage  String?
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  durationMs    Int?
+  triggerRunId  String?
+
+  @@index([workflowRunId])
+  @@unique([workflowRunId, nodeId])
+}

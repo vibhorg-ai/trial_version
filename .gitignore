@@ -23,6 +23,9 @@ trigger-deploy.log
 # Prisma
 prisma/.env
 
+# Prisma generated client
+src/generated/
+
 # Test artifacts
 coverage/
 playwright-report/
