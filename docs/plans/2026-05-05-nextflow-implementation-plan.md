@@ -286,6 +286,16 @@ git commit -m "chore: add Prettier, strict ESLint rules, Husky + lint-staged"
 
 ### Task 1.5: Install all locked-stack runtime dependencies
 
+> **Known transitive vulnerabilities accepted at install time:** As of install,
+> `npm audit` reports 13 transitive vulnerabilities (3 low / 5 moderate / 5 high)
+> originating in the `@trigger.dev/*` → `@opentelemetry/host-metrics` → `systeminformation`
+> chain, plus a `next` → `postcss` moderate, plus low-severity `cookie`/`engine.io`/`socket.io`
+> in the same chain. None are in code paths we author; all live inside the locked-stack
+> tooling at its current latest versions. `npm audit fix --force` would downgrade Trigger.dev
+> to a non-current version, which we explicitly reject. We re-check audit before final
+> deploy and patch any new vulnerabilities introduced by our own code, but accept the
+> current transitive set as part of the locked stack.
+
 **Files:**
 - Modify: `package.json`
 
