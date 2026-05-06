@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { GeminiNode } from '../GeminiNode';
-import { useWorkflowStore } from '../../../../lib/store/workflowStore';
+import { createRunSliceInitial, useWorkflowStore } from '../../../../lib/store/workflowStore';
 
 vi.mock('reactflow', () => ({
   Handle: ({ id, type, position }: { id: string; type: string; position: string }) => (
@@ -56,6 +56,7 @@ beforeEach(() => {
     future: [],
     selectedNodeId: null,
     selectedEdgeId: null,
+    ...createRunSliceInitial(),
   });
 });
 
@@ -131,10 +132,9 @@ describe('GeminiNode', () => {
     expect(screen.getByTestId('vision-count')).toHaveTextContent('2 images connected');
   });
 
-  it('renders all Gemini handles', () => {
+  it('passes runStatus running to BaseNodeShell', () => {
+    useWorkflowStore.setState({ nodeRunStatus: { 'gem-1': 'running' } });
     render(<GeminiHarness id="gem-1" />);
-    for (const id of ['prompt', 'system', 'vision', 'video', 'audio', 'file', 'response']) {
-      expect(screen.getByTestId(`handle-${id}`)).toBeInTheDocument();
-    }
+    expect(screen.getByTestId('node-shell')).toHaveAttribute('data-run-status', 'running');
   });
 });

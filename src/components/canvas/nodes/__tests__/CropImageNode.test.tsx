@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CropImageNode } from '../CropImageNode';
-import { useWorkflowStore } from '../../../../lib/store/workflowStore';
+import { createRunSliceInitial, useWorkflowStore } from '../../../../lib/store/workflowStore';
 
 vi.mock('reactflow', () => ({
   Handle: ({ id, type, position }: { id: string; type: string; position: string }) => (
@@ -55,6 +55,7 @@ beforeEach(() => {
     future: [],
     selectedNodeId: null,
     selectedEdgeId: null,
+    ...createRunSliceInitial(),
   });
 });
 
@@ -121,5 +122,11 @@ describe('CropImageNode', () => {
     expect(screen.getByTestId('handle-input-image')).toHaveAttribute('data-position', 'left');
     expect(screen.getByTestId('handle-output-image')).toHaveAttribute('data-type', 'source');
     expect(screen.getByTestId('handle-output-image')).toHaveAttribute('data-position', 'right');
+  });
+
+  it('passes runStatus running to BaseNodeShell', () => {
+    useWorkflowStore.setState({ nodeRunStatus: { 'crop-1': 'running' } });
+    render(<CropHarness id="crop-1" />);
+    expect(screen.getByTestId('node-shell')).toHaveAttribute('data-run-status', 'running');
   });
 });

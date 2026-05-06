@@ -19,6 +19,8 @@ function toWorkflowNode(id: string, data: GeminiNodeData): WorkflowNode {
 
 export function GeminiNode({ id, data, selected }: NodeProps<GeminiNodeData>) {
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
+  const nodeRunStatus = useWorkflowStore((s) => s.nodeRunStatus[id] ?? 'idle');
+  const baseShellStatus = nodeRunStatus === 'skipped' ? 'idle' : nodeRunStatus;
   const promptConnected = useWorkflowStore(
     useShallow((s) => s.edges.some((e) => e.target === id && e.targetHandle === 'prompt')),
   );
@@ -48,6 +50,7 @@ export function GeminiNode({ id, data, selected }: NodeProps<GeminiNodeData>) {
       icon={<Sparkles className="h-4 w-4" aria-hidden />}
       handles={handles}
       selected={selected}
+      runStatus={baseShellStatus}
     >
       <div className="flex flex-col gap-3">
         <section>

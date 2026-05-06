@@ -23,6 +23,8 @@ function newFieldName(): string {
 
 export function RequestInputsNode({ id, data, selected }: NodeProps<RequestInputsNodeData>) {
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
+  const nodeRunStatus = useWorkflowStore((s) => s.nodeRunStatus[id] ?? 'idle');
+  const baseShellStatus = nodeRunStatus === 'skipped' ? 'idle' : nodeRunStatus;
   const wfNode = toWorkflowNode(id, data);
   const handles = listHandles(wfNode);
   const [addOpen, setAddOpen] = useState(false);
@@ -46,6 +48,7 @@ export function RequestInputsNode({ id, data, selected }: NodeProps<RequestInput
       icon={<FileText className="h-4 w-4" aria-hidden />}
       handles={handles}
       selected={selected}
+      runStatus={baseShellStatus}
     >
       <div className="flex flex-col gap-3">
         {data.fields.map((field, index) => (

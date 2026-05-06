@@ -2,10 +2,14 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CanvasShell } from '../CanvasShell';
-import { useWorkflowStore } from '../../../../lib/store/workflowStore';
+import { createRunSliceInitial, useWorkflowStore } from '../../../../lib/store/workflowStore';
 
 vi.mock('../useAutoSave', () => ({
   useAutoSave: () => 'idle',
+}));
+
+vi.mock('../../../../components/canvas/RunButton', () => ({
+  RunButton: () => null,
 }));
 
 // Mock the Canvas to avoid React Flow.
@@ -46,6 +50,7 @@ beforeEach(() => {
     future: [],
     selectedNodeId: null,
     selectedEdgeId: null,
+    ...createRunSliceInitial(),
   });
 });
 

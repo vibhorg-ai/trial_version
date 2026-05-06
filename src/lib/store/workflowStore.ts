@@ -3,8 +3,30 @@ import { immer } from 'zustand/middleware/immer';
 import type { WorkflowGraph } from '../schemas/workflow';
 import type { WorkflowNode } from '../schemas/node';
 import type { WorkflowEdge } from '../schemas/edge';
+import type { NodeOutput } from '../../trigger/types';
 
 const HISTORY_LIMIT = 50;
+
+/** UI-level workflow run status (not Prisma `WorkflowRun.status`). */
+export type WorkflowRunUiStatus =
+  | 'idle'
+  | 'starting'
+  | 'running'
+  | 'success'
+  | 'failed'
+  | 'partial';
+
+/** Per-node execution status from realtime child runs. */
+export type NodeRunUiStatus = 'idle' | 'running' | 'success' | 'failed' | 'skipped';
+
+export type RealtimeRunIngestPayload = {
+  id: string;
+  taskIdentifier: string;
+  status: string;
+  tags?: string[];
+  output?: unknown;
+  error?: { message?: string };
+};
 
 interface GraphSnapshot {
   nodes: WorkflowNode[];
@@ -25,6 +47,14 @@ interface WorkflowState {
   // ui slice
   selectedNodeId: string | null;
   selectedEdgeId: string | null;
+  // run slice (Trigger.dev realtime + POST /runs)
+  activeRunId: string | null;
+  triggerRunId: string | null;
+  publicAccessToken: string | null;
+  runStatus: WorkflowRunUiStatus;
+  nodeRunStatus: Record<string, NodeRunUiStatus>;
+  nodeRunOutput: Record<string, NodeOutput>;
+  nodeRunError: Record<string, string>;
   // actions
   hydrate: (payload: {
     workflowId: string;
@@ -41,8 +71,36 @@ interface WorkflowState {
   setSelection: (selection: { nodeId?: string | null; edgeId?: string | null }) => void;
   undo: () => void;
   redo: () => void;
+  startRun: (args: {
+    scope: 'FULL' | 'SELECTED' | 'SINGLE';
+    selectedNodeIds: string[];
+  }) => Promise<{ ok: true } | { ok: false; error: string }>;
+  ingestRealtimeUpdate: (update: RealtimeRunIngestPayload) => void;
+  clearRun: () => void;
   // export helpers
   toGraph: () => WorkflowGraph;
+}
+
+/** Fresh run-slice fields for tests that fully reset store state (avoids shared `{}` refs). */
+export function createRunSliceInitial(): Pick<
+  WorkflowState,
+  | 'activeRunId'
+  | 'triggerRunId'
+  | 'publicAccessToken'
+  | 'runStatus'
+  | 'nodeRunStatus'
+  | 'nodeRunOutput'
+  | 'nodeRunError'
+> {
+  return {
+    activeRunId: null,
+    triggerRunId: null,
+    publicAccessToken: null,
+    runStatus: 'idle',
+    nodeRunStatus: {},
+    nodeRunOutput: {},
+    nodeRunError: {},
+  };
 }
 
 function snapshot(state: { nodes: WorkflowNode[]; edges: WorkflowEdge[] }): GraphSnapshot {
@@ -50,6 +108,49 @@ function snapshot(state: { nodes: WorkflowNode[]; edges: WorkflowEdge[] }): Grap
     nodes: JSON.parse(JSON.stringify(state.nodes)) as WorkflowNode[],
     edges: JSON.parse(JSON.stringify(state.edges)) as WorkflowEdge[],
   };
+}
+
+function applyRunIngest(state: WorkflowState, update: RealtimeRunIngestPayload): void {
+  if (update.taskIdentifier === 'workflow-run') {
+    if (update.status === 'COMPLETED') {
+      state.runStatus = 'success';
+    } else if (
+      update.status === 'FAILED' ||
+      update.status === 'CRASHED' ||
+      update.status === 'SYSTEM_FAILURE' ||
+      update.status === 'TIMED_OUT' ||
+      update.status === 'CANCELED' ||
+      update.status === 'EXPIRED'
+    ) {
+      state.runStatus = 'failed';
+    }
+    return;
+  }
+
+  const nodeIdTag = update.tags?.find((t) => t.startsWith('nodeId:'));
+  if (!nodeIdTag) return;
+  const nodeId = nodeIdTag.slice('nodeId:'.length);
+
+  const runningLike = new Set(['EXECUTING', 'DEQUEUED', 'WAITING']);
+  const idleLike = new Set(['PENDING_VERSION', 'QUEUED', 'DELAYED']);
+  const failedLike = new Set(['FAILED', 'CRASHED', 'SYSTEM_FAILURE', 'TIMED_OUT']);
+  const skippedLike = new Set(['CANCELED', 'EXPIRED']);
+
+  if (runningLike.has(update.status)) {
+    state.nodeRunStatus[nodeId] = 'running';
+  } else if (update.status === 'COMPLETED') {
+    state.nodeRunStatus[nodeId] = 'success';
+    if (update.output !== undefined) {
+      state.nodeRunOutput[nodeId] = update.output as NodeOutput;
+    }
+  } else if (failedLike.has(update.status)) {
+    state.nodeRunStatus[nodeId] = 'failed';
+    state.nodeRunError[nodeId] = update.error?.message ?? 'Task failed';
+  } else if (skippedLike.has(update.status)) {
+    state.nodeRunStatus[nodeId] = 'skipped';
+  } else if (idleLike.has(update.status)) {
+    state.nodeRunStatus[nodeId] = 'idle';
+  }
 }
 
 export const useWorkflowStore = create<WorkflowState>()(
@@ -63,6 +164,7 @@ export const useWorkflowStore = create<WorkflowState>()(
     future: [],
     selectedNodeId: null,
     selectedEdgeId: null,
+    ...createRunSliceInitial(),
 
     hydrate: ({ workflowId, name, graph, updatedAt }) =>
       set((state) => {
@@ -75,6 +177,14 @@ export const useWorkflowStore = create<WorkflowState>()(
         state.future = [];
         state.selectedNodeId = null;
         state.selectedEdgeId = null;
+        const fresh = createRunSliceInitial();
+        state.activeRunId = fresh.activeRunId;
+        state.triggerRunId = fresh.triggerRunId;
+        state.publicAccessToken = fresh.publicAccessToken;
+        state.runStatus = fresh.runStatus;
+        state.nodeRunStatus = fresh.nodeRunStatus;
+        state.nodeRunOutput = fresh.nodeRunOutput;
+        state.nodeRunError = fresh.nodeRunError;
       }),
 
     addNode: (node) =>
@@ -165,5 +275,69 @@ export const useWorkflowStore = create<WorkflowState>()(
         edges: s.edges,
       };
     },
+
+    startRun: async ({ scope, selectedNodeIds }) => {
+      const { workflowId } = get();
+      if (!workflowId) return { ok: false, error: 'No workflow loaded' };
+
+      set((state) => {
+        state.runStatus = 'starting';
+        state.nodeRunStatus = {};
+        state.nodeRunOutput = {};
+        state.nodeRunError = {};
+        state.activeRunId = null;
+        state.triggerRunId = null;
+        state.publicAccessToken = null;
+      });
+
+      try {
+        const res = await fetch(`/api/workflows/${workflowId}/runs`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scope, selectedNodeIds, inputs: {} }),
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          set((s) => {
+            s.runStatus = 'failed';
+          });
+          return { ok: false, error: text };
+        }
+        const data = (await res.json()) as {
+          workflowRunId: string;
+          triggerRunId: string;
+          publicAccessToken: string;
+        };
+        set((s) => {
+          s.activeRunId = data.workflowRunId;
+          s.triggerRunId = data.triggerRunId;
+          s.publicAccessToken = data.publicAccessToken;
+          s.runStatus = 'running';
+        });
+        return { ok: true };
+      } catch (err) {
+        set((s) => {
+          s.runStatus = 'failed';
+        });
+        return { ok: false, error: err instanceof Error ? err.message : 'Unknown error' };
+      }
+    },
+
+    ingestRealtimeUpdate: (update) =>
+      set((state) => {
+        applyRunIngest(state, update);
+      }),
+
+    clearRun: () =>
+      set((state) => {
+        const fresh = createRunSliceInitial();
+        state.activeRunId = fresh.activeRunId;
+        state.triggerRunId = fresh.triggerRunId;
+        state.publicAccessToken = fresh.publicAccessToken;
+        state.runStatus = fresh.runStatus;
+        state.nodeRunStatus = fresh.nodeRunStatus;
+        state.nodeRunOutput = fresh.nodeRunOutput;
+        state.nodeRunError = fresh.nodeRunError;
+      }),
   })),
 );

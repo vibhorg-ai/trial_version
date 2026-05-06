@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { BottomToolbar } from '../BottomToolbar';
-import { useWorkflowStore } from '../../../lib/store/workflowStore';
+import { createRunSliceInitial, useWorkflowStore } from '../../../lib/store/workflowStore';
 
 beforeEach(() => {
   useWorkflowStore.setState({
@@ -15,6 +15,7 @@ beforeEach(() => {
     future: [],
     selectedNodeId: null,
     selectedEdgeId: null,
+    ...createRunSliceInitial(),
   });
 });
 

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, act } from '@testing-library/react';
 import { useAutoSave } from '../useAutoSave';
-import { useWorkflowStore } from '../../../../lib/store/workflowStore';
+import { createRunSliceInitial, useWorkflowStore } from '../../../../lib/store/workflowStore';
 
 const geminiData = {
   model: 'gemini-1.5-pro',
@@ -29,6 +29,7 @@ beforeEach(() => {
     future: [],
     selectedNodeId: null,
     selectedEdgeId: null,
+    ...createRunSliceInitial(),
   });
   vi.stubGlobal(
     'fetch',

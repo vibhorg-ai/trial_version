@@ -18,6 +18,8 @@ function toWorkflowNode(id: string, data: CropImageNodeData): WorkflowNode {
 
 export function CropImageNode({ id, data, selected }: NodeProps<CropImageNodeData>) {
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
+  const nodeRunStatus = useWorkflowStore((s) => s.nodeRunStatus[id] ?? 'idle');
+  const baseShellStatus = nodeRunStatus === 'skipped' ? 'idle' : nodeRunStatus;
   const inputImageConnected = useWorkflowStore(
     useShallow((s) => s.edges.some((e) => e.target === id && e.targetHandle === 'input-image')),
   );
@@ -42,6 +44,7 @@ export function CropImageNode({ id, data, selected }: NodeProps<CropImageNodeDat
       icon={<Crop className="h-4 w-4" aria-hidden />}
       handles={handles}
       selected={selected}
+      runStatus={baseShellStatus}
     >
       <div
         data-testid="crop-params"

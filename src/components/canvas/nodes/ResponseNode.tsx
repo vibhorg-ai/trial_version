@@ -1,5 +1,7 @@
 'use client';
 
+'use client';
+
 import type { NodeProps } from 'reactflow';
 import type { z } from 'zod';
 import { MessageSquareQuote } from 'lucide-react';
@@ -7,6 +9,7 @@ import { BaseNodeShell } from './BaseNodeShell';
 import { listHandles } from '../../../lib/dag/handles';
 import type { WorkflowNode } from '../../../lib/schemas/node';
 import { ResponseNodeDataSchema } from '../../../lib/schemas/node';
+import { useWorkflowStore } from '../../../lib/store/workflowStore';
 
 type ResponseNodeData = z.infer<typeof ResponseNodeDataSchema>;
 
@@ -25,6 +28,8 @@ function formatCaptured(value: unknown): string {
 }
 
 export function ResponseNode({ id, data, selected }: NodeProps<ResponseNodeData>) {
+  const nodeRunStatus = useWorkflowStore((s) => s.nodeRunStatus[id] ?? 'idle');
+  const baseShellStatus = nodeRunStatus === 'skipped' ? 'idle' : nodeRunStatus;
   const wfNode = toWorkflowNode(id, data);
   const handles = listHandles(wfNode);
   const text = formatCaptured(data.capturedValue);
@@ -37,6 +42,7 @@ export function ResponseNode({ id, data, selected }: NodeProps<ResponseNodeData>
       icon={<MessageSquareQuote className="h-4 w-4" aria-hidden />}
       handles={handles}
       selected={selected}
+      runStatus={baseShellStatus}
     >
       <div
         data-testid="response-body"

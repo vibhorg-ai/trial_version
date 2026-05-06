@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render, fireEvent } from '@testing-library/react';
 import { useCanvasKeyboard } from '../useCanvasKeyboard';
-import { useWorkflowStore } from '../../../../lib/store/workflowStore';
+import { createRunSliceInitial, useWorkflowStore } from '../../../../lib/store/workflowStore';
 
 function TestHost() {
   useCanvasKeyboard();
@@ -28,6 +28,7 @@ beforeEach(() => {
     future: [],
     selectedNodeId: null,
     selectedEdgeId: null,
+    ...createRunSliceInitial(),
   });
 });
 

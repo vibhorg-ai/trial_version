@@ -58,6 +58,12 @@ beforeEach(() => {
 });
 
 describe('RequestInputsNode', () => {
+  it('maps nodeRunStatus running to BaseNodeShell', () => {
+    useWorkflowStore.setState({ nodeRunStatus: { 'req-1': 'running' } });
+    render(<RequestInputsHarness id="req-1" />);
+    expect(screen.getByTestId('node-shell')).toHaveAttribute('data-run-status', 'running');
+  });
+
   it('renders one row per field', () => {
     render(<RequestInputsHarness id="req-1" />);
     expect(screen.getByTestId('request-field-row-topic')).toBeInTheDocument();

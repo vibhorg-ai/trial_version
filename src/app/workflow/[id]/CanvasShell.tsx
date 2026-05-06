@@ -6,6 +6,7 @@ import { ChevronLeft, Download, Trash2, Upload } from 'lucide-react';
 import { useWorkflowStore } from '../../../lib/store/workflowStore';
 import { WorkflowGraphSchema, type WorkflowGraph } from '../../../lib/schemas/workflow';
 import { Canvas } from './Canvas';
+import { RunButton } from '../../../components/canvas/RunButton';
 import { useCanvasKeyboard } from './useCanvasKeyboard';
 import { useAutoSave } from './useAutoSave';
 
@@ -139,6 +140,7 @@ export function CanvasShell({
             </span>
           )}
           <div className="ml-auto flex items-center gap-3">
+            <RunButton />
             <input
               ref={fileInputRef}
               type="file"

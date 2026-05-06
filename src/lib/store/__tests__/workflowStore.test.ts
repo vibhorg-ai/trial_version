@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { useWorkflowStore } from '../workflowStore';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { createRunSliceInitial, useWorkflowStore } from '../workflowStore';
 
 const geminiData = {
   model: 'gemini-1.5-pro',
@@ -40,6 +40,7 @@ beforeEach(() => {
     future: [],
     selectedNodeId: null,
     selectedEdgeId: null,
+    ...createRunSliceInitial(),
   });
 });
 
@@ -391,6 +392,175 @@ describe('workflowStore', () => {
       expect(g.nodes).toHaveLength(3);
       expect(g.edges).toEqual([]);
       expect(g.nodes[2]).toMatchObject({ id: 'gem1', type: 'gemini', position: { x: 1, y: 2 } });
+    });
+  });
+
+  describe('run slice', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('initial run state is idle with empty maps', () => {
+      const s = useWorkflowStore.getState();
+      expect(s.activeRunId).toBeNull();
+      expect(s.runStatus).toBe('idle');
+      expect(s.nodeRunStatus).toEqual({});
+    });
+
+    it('startRun POSTs to /api/workflows/:id/runs with body', async () => {
+      const fetchMock = vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              workflowRunId: 'wr1',
+              triggerRunId: 'tr1',
+              publicAccessToken: 'tok',
+            }),
+        } as Response),
+      );
+      vi.stubGlobal('fetch', fetchMock);
+      useWorkflowStore.getState().hydrate({
+        workflowId: 'wf-run',
+        name: '',
+        graph: baseGraph,
+        updatedAt: '',
+      });
+      const result = await useWorkflowStore.getState().startRun({
+        scope: 'FULL',
+        selectedNodeIds: [],
+      });
+      expect(result).toEqual({ ok: true });
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/workflows/wf-run/runs',
+        expect.objectContaining({
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ scope: 'FULL', selectedNodeIds: [], inputs: {} }),
+        }),
+      );
+      const s = useWorkflowStore.getState();
+      expect(s.activeRunId).toBe('wr1');
+      expect(s.triggerRunId).toBe('tr1');
+      expect(s.publicAccessToken).toBe('tok');
+      expect(s.runStatus).toBe('running');
+    });
+
+    it('startRun on non-OK sets runStatus failed and returns error', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() =>
+          Promise.resolve({
+            ok: false,
+            text: () => Promise.resolve('nope'),
+          } as Response),
+        ),
+      );
+      useWorkflowStore.getState().hydrate({
+        workflowId: 'wf-run',
+        name: '',
+        graph: baseGraph,
+        updatedAt: '',
+      });
+      const result = await useWorkflowStore.getState().startRun({
+        scope: 'SINGLE',
+        selectedNodeIds: ['request-inputs'],
+      });
+      expect(result).toEqual({ ok: false, error: 'nope' });
+      expect(useWorkflowStore.getState().runStatus).toBe('failed');
+    });
+
+    it('ingestRealtimeUpdate maps EXECUTING child run to running', () => {
+      useWorkflowStore.getState().ingestRealtimeUpdate({
+        id: 'r1',
+        taskIdentifier: 'crop-image',
+        status: 'EXECUTING',
+        tags: ['nodeId:abc', 'workflowRunId:x'],
+      });
+      expect(useWorkflowStore.getState().nodeRunStatus.abc).toBe('running');
+    });
+
+    it('ingestRealtimeUpdate maps COMPLETED and stores output', () => {
+      const out = { kind: 'text' as const, text: 'hi' };
+      useWorkflowStore.getState().ingestRealtimeUpdate({
+        id: 'r1',
+        taskIdentifier: 'gemini',
+        status: 'COMPLETED',
+        tags: ['nodeId:abc'],
+        output: out,
+      });
+      const s = useWorkflowStore.getState();
+      expect(s.nodeRunStatus.abc).toBe('success');
+      expect(s.nodeRunOutput.abc).toEqual(out);
+    });
+
+    it('ingestRealtimeUpdate maps FAILED and stores error message', () => {
+      useWorkflowStore.getState().ingestRealtimeUpdate({
+        id: 'r1',
+        taskIdentifier: 'gemini',
+        status: 'FAILED',
+        tags: ['nodeId:abc'],
+        error: { message: 'boom' },
+      });
+      const s = useWorkflowStore.getState();
+      expect(s.nodeRunStatus.abc).toBe('failed');
+      expect(s.nodeRunError.abc).toBe('boom');
+    });
+
+    it('ingestRealtimeUpdate for orchestrator updates overall runStatus only', () => {
+      useWorkflowStore.setState({ runStatus: 'running' });
+      useWorkflowStore.getState().ingestRealtimeUpdate({
+        id: 'orch',
+        taskIdentifier: 'workflow-run',
+        status: 'COMPLETED',
+        tags: [],
+      });
+      expect(useWorkflowStore.getState().runStatus).toBe('success');
+      expect(useWorkflowStore.getState().nodeRunStatus).toEqual({});
+    });
+
+    it('clearRun resets all run fields', () => {
+      useWorkflowStore.setState({
+        activeRunId: 'a',
+        triggerRunId: 't',
+        publicAccessToken: 'p',
+        runStatus: 'running',
+        nodeRunStatus: { n: 'running' },
+        nodeRunOutput: { n: { kind: 'text', text: '' } },
+        nodeRunError: { n: 'e' },
+      });
+      useWorkflowStore.getState().clearRun();
+      const s = useWorkflowStore.getState();
+      expect(s.activeRunId).toBeNull();
+      expect(s.triggerRunId).toBeNull();
+      expect(s.publicAccessToken).toBeNull();
+      expect(s.runStatus).toBe('idle');
+      expect(s.nodeRunStatus).toEqual({});
+      expect(s.nodeRunOutput).toEqual({});
+      expect(s.nodeRunError).toEqual({});
+    });
+
+    it('hydrate resets the run slice', () => {
+      useWorkflowStore.setState({
+        activeRunId: 'x',
+        triggerRunId: 'y',
+        publicAccessToken: 'z',
+        runStatus: 'running',
+        nodeRunStatus: { a: 'success' },
+        nodeRunOutput: {},
+        nodeRunError: {},
+      });
+      useWorkflowStore.getState().hydrate({
+        workflowId: 'wf2',
+        name: 'N',
+        graph: baseGraph,
+        updatedAt: '2025-01-01T00:00:00.000Z',
+      });
+      const s = useWorkflowStore.getState();
+      expect(s.workflowId).toBe('wf2');
+      expect(s.runStatus).toBe('idle');
+      expect(s.activeRunId).toBeNull();
+      expect(s.nodeRunStatus).toEqual({});
     });
   });
 });

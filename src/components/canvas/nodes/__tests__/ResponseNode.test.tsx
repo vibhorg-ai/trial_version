@@ -1,6 +1,7 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { ResponseNode } from '../ResponseNode';
+import { createRunSliceInitial, useWorkflowStore } from '../../../../lib/store/workflowStore';
 
 vi.mock('reactflow', () => ({
   Handle: ({ id, type, position }: { id: string; type: string; position: string }) => (
@@ -20,6 +21,21 @@ const staticProps = {
   dragging: false,
 };
 
+beforeEach(() => {
+  useWorkflowStore.setState({
+    workflowId: 'wf',
+    name: '',
+    updatedAt: null,
+    nodes: [],
+    edges: [],
+    past: [],
+    future: [],
+    selectedNodeId: null,
+    selectedEdgeId: null,
+    ...createRunSliceInitial(),
+  });
+});
+
 describe('ResponseNode', () => {
   it('renders a single result input handle and no outputs', () => {
     render(<ResponseNode {...staticProps} data={{ capturedValue: null }} />);
@@ -37,5 +53,11 @@ describe('ResponseNode', () => {
   it('shows captured string value when present', () => {
     render(<ResponseNode {...staticProps} data={{ capturedValue: 'Done!' }} />);
     expect(screen.getByTestId('response-body')).toHaveTextContent('Done!');
+  });
+
+  it('passes runStatus running to BaseNodeShell', () => {
+    useWorkflowStore.setState({ nodeRunStatus: { 'resp-1': 'running' } });
+    render(<ResponseNode {...staticProps} data={{ capturedValue: null }} />);
+    expect(screen.getByTestId('node-shell')).toHaveAttribute('data-run-status', 'running');
   });
 });
