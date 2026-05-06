@@ -177,4 +177,10 @@ describe('RequestInputsNode', () => {
     render(<RequestInputsHarness id="req-1" />);
     expect(screen.getByRole('button', { name: /remove field only/i })).toBeDisabled();
   });
+
+  it('marks BaseNodeShell selected when store selectedNodeId matches this node', () => {
+    useWorkflowStore.setState({ selectedNodeId: 'req-1' });
+    render(<RequestInputsHarness id="req-1" />);
+    expect(screen.getByTestId('node-shell')).toHaveClass('is-selected');
+  });
 });

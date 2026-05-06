@@ -1,7 +1,5 @@
 'use client';
 
-'use client';
-
 import type { NodeProps } from 'reactflow';
 import type { z } from 'zod';
 import { MessageSquareQuote } from 'lucide-react';
@@ -27,7 +25,8 @@ function formatCaptured(value: unknown): string {
   }
 }
 
-export function ResponseNode({ id, data, selected }: NodeProps<ResponseNodeData>) {
+export function ResponseNode({ id, data }: NodeProps<ResponseNodeData>) {
+  const isSelected = useWorkflowStore((s) => s.selectedNodeId === id);
   const nodeRunStatus = useWorkflowStore((s) => s.nodeRunStatus[id] ?? 'idle');
   const baseShellStatus = nodeRunStatus === 'skipped' ? 'idle' : nodeRunStatus;
   const wfNode = toWorkflowNode(id, data);
@@ -41,7 +40,7 @@ export function ResponseNode({ id, data, selected }: NodeProps<ResponseNodeData>
       subtitle="Final output"
       icon={<MessageSquareQuote className="h-4 w-4" aria-hidden />}
       handles={handles}
-      selected={selected}
+      selected={isSelected}
       runStatus={baseShellStatus}
     >
       <div

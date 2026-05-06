@@ -16,8 +16,9 @@ function toWorkflowNode(id: string, data: CropImageNodeData): WorkflowNode {
   return { id, type: 'crop-image', position: { x: 0, y: 0 }, data };
 }
 
-export function CropImageNode({ id, data, selected }: NodeProps<CropImageNodeData>) {
+export function CropImageNode({ id, data }: NodeProps<CropImageNodeData>) {
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
+  const isSelected = useWorkflowStore((s) => s.selectedNodeId === id);
   const nodeRunStatus = useWorkflowStore((s) => s.nodeRunStatus[id] ?? 'idle');
   const baseShellStatus = nodeRunStatus === 'skipped' ? 'idle' : nodeRunStatus;
   const inputImageConnected = useWorkflowStore(
@@ -43,7 +44,7 @@ export function CropImageNode({ id, data, selected }: NodeProps<CropImageNodeDat
       subtitle="Percent bounds"
       icon={<Crop className="h-4 w-4" aria-hidden />}
       handles={handles}
-      selected={selected}
+      selected={isSelected}
       runStatus={baseShellStatus}
     >
       <div

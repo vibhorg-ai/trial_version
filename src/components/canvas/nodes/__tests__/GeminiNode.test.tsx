@@ -137,4 +137,10 @@ describe('GeminiNode', () => {
     render(<GeminiHarness id="gem-1" />);
     expect(screen.getByTestId('node-shell')).toHaveAttribute('data-run-status', 'running');
   });
+
+  it('marks BaseNodeShell selected when store selectedNodeId matches this node', () => {
+    useWorkflowStore.setState({ selectedNodeId: 'gem-1' });
+    render(<GeminiHarness id="gem-1" />);
+    expect(screen.getByTestId('node-shell')).toHaveClass('is-selected');
+  });
 });

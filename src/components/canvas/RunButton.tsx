@@ -45,6 +45,7 @@ export function RunButton() {
             type="button"
             role="menuitem"
             disabled={!canRunSingle}
+            title={!canRunSingle ? 'Select a node first' : undefined}
             className="block w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={() => {
               setMenuOpen(false);

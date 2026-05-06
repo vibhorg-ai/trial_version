@@ -60,4 +60,10 @@ describe('ResponseNode', () => {
     render(<ResponseNode {...staticProps} data={{ capturedValue: null }} />);
     expect(screen.getByTestId('node-shell')).toHaveAttribute('data-run-status', 'running');
   });
+
+  it('marks BaseNodeShell selected when store selectedNodeId matches this node', () => {
+    useWorkflowStore.setState({ selectedNodeId: 'resp-1' });
+    render(<ResponseNode {...staticProps} data={{ capturedValue: null }} />);
+    expect(screen.getByTestId('node-shell')).toHaveClass('is-selected');
+  });
 });

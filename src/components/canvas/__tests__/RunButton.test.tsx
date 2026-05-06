@@ -72,4 +72,13 @@ describe('RunButton', () => {
     render(<RunButton />);
     expect(screen.getByRole('button', { name: /running/i })).toHaveTextContent('Running…');
   });
+
+  it('sets a title on disabled Run Single Node when nothing is selected', async () => {
+    const user = userEvent.setup();
+    render(<RunButton />);
+    await user.click(screen.getByRole('button', { name: /run options/i }));
+    const item = screen.getByRole('menuitem', { name: /run single node/i });
+    expect(item).toBeDisabled();
+    expect(item).toHaveAttribute('title', 'Select a node first');
+  });
 });

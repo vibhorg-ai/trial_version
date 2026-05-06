@@ -21,8 +21,9 @@ function newFieldName(): string {
   return `field_${crypto.randomUUID().replace(/-/g, '').slice(0, 8)}`;
 }
 
-export function RequestInputsNode({ id, data, selected }: NodeProps<RequestInputsNodeData>) {
+export function RequestInputsNode({ id, data }: NodeProps<RequestInputsNodeData>) {
   const updateNodeData = useWorkflowStore((s) => s.updateNodeData);
+  const isSelected = useWorkflowStore((s) => s.selectedNodeId === id);
   const nodeRunStatus = useWorkflowStore((s) => s.nodeRunStatus[id] ?? 'idle');
   const baseShellStatus = nodeRunStatus === 'skipped' ? 'idle' : nodeRunStatus;
   const wfNode = toWorkflowNode(id, data);
@@ -47,7 +48,7 @@ export function RequestInputsNode({ id, data, selected }: NodeProps<RequestInput
       subtitle="Workflow inputs"
       icon={<FileText className="h-4 w-4" aria-hidden />}
       handles={handles}
-      selected={selected}
+      selected={isSelected}
       runStatus={baseShellStatus}
     >
       <div className="flex flex-col gap-3">

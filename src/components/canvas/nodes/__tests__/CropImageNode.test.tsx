@@ -129,4 +129,10 @@ describe('CropImageNode', () => {
     render(<CropHarness id="crop-1" />);
     expect(screen.getByTestId('node-shell')).toHaveAttribute('data-run-status', 'running');
   });
+
+  it('marks BaseNodeShell selected when store selectedNodeId matches this node', () => {
+    useWorkflowStore.setState({ selectedNodeId: 'crop-1' });
+    render(<CropHarness id="crop-1" />);
+    expect(screen.getByTestId('node-shell')).toHaveClass('is-selected');
+  });
 });
