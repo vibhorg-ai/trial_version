@@ -1,7 +1,9 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, act } from '@testing-library/react';
 import { Canvas } from '../Canvas';
 import { useWorkflowStore } from '../../../../lib/store/workflowStore';
+
+const rfHandlers: Record<string, unknown> = {};
 
 // Mock reactflow before any other imports that use it.
 vi.mock('reactflow', () => {
@@ -11,22 +13,23 @@ vi.mock('reactflow', () => {
       children,
       nodes,
       edges,
-      onNodesChange: _onNodesChange,
-      ..._rest
-    }: {
+      ...handlers
+    }: Record<string, unknown> & {
       children?: React.ReactNode;
       nodes: unknown[];
       edges: unknown[];
-      onNodesChange?: unknown;
-    }) => (
-      <div
-        data-testid="rf-root"
-        data-nodes={JSON.stringify(nodes)}
-        data-edges={JSON.stringify(edges)}
-      >
-        {children}
-      </div>
-    ),
+    }) => {
+      Object.assign(rfHandlers, handlers);
+      return (
+        <div
+          data-testid="rf-root"
+          data-nodes={JSON.stringify(nodes)}
+          data-edges={JSON.stringify(edges)}
+        >
+          {children}
+        </div>
+      );
+    },
     Background: ({ variant, gap, size }: { variant?: string; gap?: number; size?: number }) => (
       <div data-testid="rf-background" data-variant={variant} data-gap={gap} data-size={size} />
     ),
@@ -60,7 +63,25 @@ const baseGraph = {
   edges: [],
 };
 
+const geminiData = {
+  model: 'gemini-1.5-pro',
+  prompt: '',
+  systemPrompt: '',
+  temperature: 0.7,
+  maxOutputTokens: 256,
+  topP: 0.95,
+};
+
+const cropData = {
+  x: 0,
+  y: 0,
+  w: 100,
+  h: 100,
+  inputImageUrl: null as string | null,
+};
+
 beforeEach(() => {
+  Object.keys(rfHandlers).forEach((k) => delete rfHandlers[k]);
   useWorkflowStore.setState({
     workflowId: 'wf1',
     name: 'Test',
@@ -72,6 +93,10 @@ beforeEach(() => {
     selectedNodeId: null,
     selectedEdgeId: null,
   });
+});
+
+afterEach(() => {
+  vi.clearAllTimers();
 });
 
 describe('Canvas', () => {
@@ -126,5 +151,147 @@ describe('Canvas', () => {
     rerender(<Canvas />);
     root = screen.getByTestId('rf-root');
     expect(JSON.parse(root.getAttribute('data-nodes')!)).toHaveLength(3);
+  });
+
+  it('pane click clears selection', () => {
+    useWorkflowStore.setState({ selectedNodeId: 'n1', selectedEdgeId: 'e1' });
+    render(<Canvas />);
+    const onPaneClick = rfHandlers.onPaneClick as () => void;
+    onPaneClick();
+    expect(useWorkflowStore.getState().selectedNodeId).toBeNull();
+    expect(useWorkflowStore.getState().selectedEdgeId).toBeNull();
+  });
+
+  it('node click sets node selection and clears edge selection', () => {
+    useWorkflowStore.setState({ selectedEdgeId: 'e1' });
+    render(<Canvas />);
+    const onNodeClick = rfHandlers.onNodeClick as (e: unknown, node: { id: string }) => void;
+    onNodeClick({}, { id: 'crop1' });
+    expect(useWorkflowStore.getState().selectedNodeId).toBe('crop1');
+    expect(useWorkflowStore.getState().selectedEdgeId).toBeNull();
+  });
+
+  it('edge click sets edge selection and clears node selection', () => {
+    useWorkflowStore.setState({ selectedNodeId: 'n1' });
+    render(<Canvas />);
+    const onEdgeClick = rfHandlers.onEdgeClick as (e: unknown, edge: { id: string }) => void;
+    onEdgeClick({}, { id: 'edge-1' });
+    expect(useWorkflowStore.getState().selectedEdgeId).toBe('edge-1');
+    expect(useWorkflowStore.getState().selectedNodeId).toBeNull();
+  });
+
+  it('onConnect with valid types adds an edge', () => {
+    useWorkflowStore.setState({
+      nodes: [
+        {
+          id: 'crop1',
+          type: 'crop-image',
+          position: { x: 0, y: 0 },
+          data: cropData,
+        },
+        {
+          id: 'gem1',
+          type: 'gemini',
+          position: { x: 200, y: 0 },
+          data: geminiData,
+        },
+      ],
+      edges: [],
+    });
+    render(<Canvas />);
+    const before = useWorkflowStore.getState().edges.length;
+    const onConnect = rfHandlers.onConnect as (c: {
+      source: string | null;
+      target: string | null;
+      sourceHandle: string | null;
+      targetHandle: string | null;
+    }) => void;
+    onConnect({
+      source: 'crop1',
+      target: 'gem1',
+      sourceHandle: 'output-image',
+      targetHandle: 'vision',
+    });
+    expect(useWorkflowStore.getState().edges).toHaveLength(before + 1);
+    const added = useWorkflowStore.getState().edges[before];
+    expect(added.source).toBe('crop1');
+    expect(added.target).toBe('gem1');
+    expect(added.sourceHandle).toBe('output-image');
+    expect(added.targetHandle).toBe('vision');
+  });
+
+  it('onConnect with invalid types does not add an edge and shows error', async () => {
+    useWorkflowStore.setState({
+      nodes: [
+        {
+          id: 'gem1',
+          type: 'gemini',
+          position: { x: 0, y: 0 },
+          data: geminiData,
+        },
+        {
+          id: 'crop1',
+          type: 'crop-image',
+          position: { x: 200, y: 0 },
+          data: cropData,
+        },
+      ],
+      edges: [],
+    });
+    render(<Canvas />);
+    const before = useWorkflowStore.getState().edges.length;
+    const onConnect = rfHandlers.onConnect as (c: {
+      source: string | null;
+      target: string | null;
+      sourceHandle: string | null;
+      targetHandle: string | null;
+    }) => void;
+    await act(() => {
+      onConnect({
+        source: 'gem1',
+        target: 'crop1',
+        sourceHandle: 'response',
+        targetHandle: 'input-image',
+      });
+    });
+    expect(useWorkflowStore.getState().edges).toHaveLength(before);
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Cannot connect: handle types are incompatible',
+    );
+  });
+
+  it('onConnect with missing source/target/handles is a no-op', () => {
+    useWorkflowStore.setState({
+      nodes: [
+        {
+          id: 'crop1',
+          type: 'crop-image',
+          position: { x: 0, y: 0 },
+          data: cropData,
+        },
+        {
+          id: 'gem1',
+          type: 'gemini',
+          position: { x: 200, y: 0 },
+          data: geminiData,
+        },
+      ],
+      edges: [],
+    });
+    render(<Canvas />);
+    const before = useWorkflowStore.getState().edges.length;
+    const onConnect = rfHandlers.onConnect as (c: {
+      source: string | null;
+      target: string | null;
+      sourceHandle: string | null;
+      targetHandle: string | null;
+    }) => void;
+    onConnect({
+      source: 'crop1',
+      target: 'gem1',
+      sourceHandle: null,
+      targetHandle: 'vision',
+    });
+    expect(useWorkflowStore.getState().edges).toHaveLength(before);
   });
 });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useState, useRef, useEffect, type MouseEvent } from 'react';
 import ReactFlow, {
   Background,
   BackgroundVariant,
@@ -10,11 +10,30 @@ import ReactFlow, {
   type Edge,
   type NodeChange,
   type EdgeChange,
+  type Connection,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { useWorkflowStore } from '../../../lib/store/workflowStore';
 import type { WorkflowNode } from '../../../lib/schemas/node';
 import type { WorkflowEdge } from '../../../lib/schemas/edge';
+import { canConnectByIds, type CanConnectResult } from '../../../lib/dag/handles';
+
+type ConnectFailureReason = Extract<CanConnectResult, { ok: false }>['reason'];
+
+function humanizeReason(reason: ConnectFailureReason): string {
+  switch (reason) {
+    case 'unknown-source-handle':
+      return 'Cannot connect: source handle not found';
+    case 'unknown-target-handle':
+      return 'Cannot connect: target handle not found';
+    case 'type-mismatch':
+      return 'Cannot connect: handle types are incompatible';
+    case 'cannot-target-output-side':
+      return 'Cannot connect: target must be an input handle';
+    case 'cannot-source-from-input-side':
+      return 'Cannot connect: source must be an output handle';
+  }
+}
 
 /**
  * Maps our domain `WorkflowNode` (discriminated union) to React Flow's
@@ -49,6 +68,19 @@ export function Canvas() {
   const nodes = useWorkflowStore((s) => s.nodes);
   const edges = useWorkflowStore((s) => s.edges);
   const setNodePosition = useWorkflowStore((s) => s.setNodePosition);
+  const setSelection = useWorkflowStore((s) => s.setSelection);
+  const addEdge = useWorkflowStore((s) => s.addEdge);
+
+  const [connectError, setConnectError] = useState<string | null>(null);
+  const connectErrorClearRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (connectErrorClearRef.current !== null) {
+        clearTimeout(connectErrorClearRef.current);
+      }
+    };
+  }, []);
 
   const rfNodes = useMemo(() => nodes.map(toRFNode), [nodes]);
   const rfEdges = useMemo(() => edges.map(toRFEdge), [edges]);
@@ -79,13 +111,70 @@ export function Canvas() {
     // happens in 6.5–6.7). We swallow the changes to avoid React warnings.
   }, []);
 
+  const onNodeClick = useCallback(
+    (_e: MouseEvent, node: Node) => {
+      setSelection({ nodeId: node.id, edgeId: null });
+    },
+    [setSelection],
+  );
+
+  const onEdgeClick = useCallback(
+    (_e: MouseEvent, edge: Edge) => {
+      setSelection({ nodeId: null, edgeId: edge.id });
+    },
+    [setSelection],
+  );
+
+  const onPaneClick = useCallback(() => {
+    setSelection({ nodeId: null, edgeId: null });
+  }, [setSelection]);
+
+  const onConnect = useCallback(
+    (conn: Connection) => {
+      if (!conn.source || !conn.target || !conn.sourceHandle || !conn.targetHandle) {
+        return;
+      }
+      const sourceNode = nodes.find((n) => n.id === conn.source);
+      const targetNode = nodes.find((n) => n.id === conn.target);
+      if (!sourceNode || !targetNode) return;
+
+      const result = canConnectByIds(sourceNode, conn.sourceHandle, targetNode, conn.targetHandle);
+      if (!result.ok) {
+        const reason = humanizeReason(result.reason);
+        setConnectError(reason);
+        if (connectErrorClearRef.current !== null) {
+          clearTimeout(connectErrorClearRef.current);
+        }
+        connectErrorClearRef.current = globalThis.setTimeout(() => {
+          setConnectError(null);
+          connectErrorClearRef.current = null;
+        }, 3000);
+        return;
+      }
+
+      const id = `edge-${conn.source}-${conn.sourceHandle}__${conn.target}-${conn.targetHandle}-${Date.now()}`;
+      addEdge({
+        id,
+        source: conn.source,
+        target: conn.target,
+        sourceHandle: conn.sourceHandle,
+        targetHandle: conn.targetHandle,
+      });
+    },
+    [nodes, addEdge],
+  );
+
   return (
-    <div className="h-full w-full">
+    <div className="relative h-full w-full">
       <ReactFlow
         nodes={rfNodes}
         edges={rfEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onNodeClick={onNodeClick}
+        onEdgeClick={onEdgeClick}
+        onPaneClick={onPaneClick}
+        onConnect={onConnect}
         fitView
         fitViewOptions={{ padding: 0.2, duration: 0 }}
         attributionPosition="bottom-left"
@@ -113,6 +202,14 @@ export function Canvas() {
           zoomable
         />
       </ReactFlow>
+      {connectError ? (
+        <div
+          role="alert"
+          className="pointer-events-none absolute bottom-6 left-1/2 -translate-x-1/2 rounded-lg bg-red-600/95 px-4 py-2 text-sm font-medium text-white shadow-lg"
+        >
+          {connectError}
+        </div>
+      ) : null}
     </div>
   );
 }
