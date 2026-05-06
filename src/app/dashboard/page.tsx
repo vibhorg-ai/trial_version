@@ -1,6 +1,6 @@
 import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
-import { ensureDefaultWorkflow } from '../../lib/seed-default-workflow';
+import { ensureDefaultWorkflow, ensureDemoWorkflow } from '../../lib/seed-default-workflow';
 import { prisma } from '../../lib/prisma';
 import { DashboardWorkflowShell } from './DashboardWorkflowShell';
 
@@ -9,6 +9,7 @@ export default async function DashboardPage() {
   if (!userId) redirect('/sign-in');
 
   await ensureDefaultWorkflow(userId);
+  await ensureDemoWorkflow(userId);
   const workflows = await prisma.workflow.findMany({
     where: { userId },
     orderBy: { updatedAt: 'desc' },
