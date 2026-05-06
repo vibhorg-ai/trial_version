@@ -1,8 +1,12 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CanvasShell } from '../CanvasShell';
 import { useWorkflowStore } from '../../../../lib/store/workflowStore';
+
+vi.mock('../useAutoSave', () => ({
+  useAutoSave: () => 'idle',
+}));
 
 // Mock the Canvas to avoid React Flow.
 vi.mock('../Canvas', () => ({
@@ -264,7 +268,9 @@ describe('CanvasShell', () => {
     await user.click(screen.getByRole('button', { name: /export workflow as json/i }));
 
     expect(createObjectURL).toHaveBeenCalledTimes(1);
-    const blob = createObjectURL.mock.calls[0][0] as Blob;
+    const firstCall = createObjectURL.mock.calls[0] as unknown as [Blob];
+    expect(firstCall).toBeDefined();
+    const blob = firstCall[0] as Blob;
     const text = await blob.text();
     expect(JSON.parse(text)).toEqual(useWorkflowStore.getState().toGraph());
 

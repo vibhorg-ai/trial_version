@@ -7,6 +7,7 @@ import { useWorkflowStore } from '../../../lib/store/workflowStore';
 import { WorkflowGraphSchema, type WorkflowGraph } from '../../../lib/schemas/workflow';
 import { Canvas } from './Canvas';
 import { useCanvasKeyboard } from './useCanvasKeyboard';
+import { useAutoSave } from './useAutoSave';
 
 interface CanvasShellProps {
   workflowId: string;
@@ -108,6 +109,7 @@ export function CanvasShell({
   }, [importError]);
 
   useCanvasKeyboard();
+  const saveStatus = useAutoSave();
 
   return (
     <div className="flex h-screen flex-col">
@@ -121,6 +123,21 @@ export function CanvasShell({
         </Link>
         <div className="flex flex-1 items-center gap-3">
           <h1 className="text-lg font-semibold text-zinc-900">{name || workflowName}</h1>
+          {saveStatus === 'saving' && (
+            <span className="text-xs font-medium text-zinc-500" aria-live="polite">
+              Saving…
+            </span>
+          )}
+          {saveStatus === 'saved' && (
+            <span className="text-xs font-medium text-emerald-600" aria-live="polite">
+              Saved
+            </span>
+          )}
+          {saveStatus === 'error' && (
+            <span className="text-xs font-medium text-red-600" aria-live="polite">
+              Save failed
+            </span>
+          )}
           <div className="ml-auto flex items-center gap-3">
             <input
               ref={fileInputRef}
