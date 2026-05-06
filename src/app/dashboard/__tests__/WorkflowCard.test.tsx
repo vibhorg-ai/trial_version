@@ -116,6 +116,28 @@ describe('WorkflowCard', () => {
     expect(screen.getByText(/sure/i)).toBeInTheDocument();
   });
 
+  it('delegates rename to onRename when provided', async () => {
+    const onRename = vi.fn();
+    const user = userEvent.setup();
+    render(<WorkflowCard workflow={baseWorkflow} onRename={onRename} />);
+    await user.click(screen.getByRole('button', { name: /rename workflow/i }));
+    await user.clear(screen.getByRole('textbox', { name: /workflow name/i }));
+    await user.type(screen.getByRole('textbox', { name: /workflow name/i }), 'Delegated');
+    await user.click(screen.getByRole('button', { name: /^save$/i }));
+    expect(onRename).toHaveBeenCalledWith('Delegated');
+    expect(renameWorkflow).not.toHaveBeenCalled();
+  });
+
+  it('delegates delete to onDelete when provided', async () => {
+    const onDelete = vi.fn();
+    const user = userEvent.setup();
+    render(<WorkflowCard workflow={baseWorkflow} onDelete={onDelete} />);
+    await user.click(screen.getByRole('button', { name: /delete workflow/i }));
+    await user.click(screen.getByRole('button', { name: /^delete$/i }));
+    expect(onDelete).toHaveBeenCalled();
+    expect(deleteWorkflow).not.toHaveBeenCalled();
+  });
+
   it('calls deleteWorkflow when delete is confirmed', async () => {
     vi.mocked(deleteWorkflow).mockResolvedValue({ ok: true, data: undefined });
     const user = userEvent.setup();

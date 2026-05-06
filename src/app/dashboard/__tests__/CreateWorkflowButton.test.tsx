@@ -50,6 +50,26 @@ describe('CreateWorkflowButton', () => {
     expect(createWorkflow).not.toHaveBeenCalled();
   });
 
+  it('invokes optimistic create hooks before navigation on success', async () => {
+    const onOptimisticCreate = vi.fn(() => 'pending-id');
+    const onResolveCreate = vi.fn();
+    vi.mocked(createWorkflow).mockResolvedValue({ ok: true, data: { id: 'wf_real' } });
+    const user = userEvent.setup();
+    render(
+      <CreateWorkflowButton
+        onOptimisticCreate={onOptimisticCreate}
+        onResolveCreate={onResolveCreate}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: /create new workflow/i }));
+    await user.type(screen.getByRole('textbox', { name: /workflow name/i }), 'Optimistic');
+    await user.click(screen.getByRole('button', { name: /^create$/i }));
+
+    expect(onOptimisticCreate).toHaveBeenCalledWith('Optimistic');
+    expect(createWorkflow).toHaveBeenCalledWith({ name: 'Optimistic' });
+    expect(onResolveCreate).toHaveBeenCalledWith('pending-id', 'wf_real');
+  });
+
   it('calls createWorkflow and navigates on success', async () => {
     const push = vi.fn();
     vi.mocked(useRouter).mockReturnValue({ push } as unknown as ReturnType<typeof useRouter>);

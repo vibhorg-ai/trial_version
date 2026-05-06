@@ -5,7 +5,18 @@ import { useRouter } from 'next/navigation';
 import { Plus, Loader2 } from 'lucide-react';
 import { createWorkflow } from './actions';
 
-export function CreateWorkflowButton() {
+export interface CreateWorkflowButtonProps {
+  /** Return a pending row id so create failures can roll back optimistic state. */
+  onOptimisticCreate?: (trimmedName: string) => string;
+  onResolveCreate?: (pendingId: string, realId: string) => void;
+  onOptimisticCreateFailed?: (pendingId: string) => void;
+}
+
+export function CreateWorkflowButton({
+  onOptimisticCreate,
+  onResolveCreate,
+  onOptimisticCreateFailed,
+}: CreateWorkflowButtonProps = {}) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [isExpanded, setExpanded] = useState(false);
@@ -25,13 +36,32 @@ export function CreateWorkflowButton() {
       return;
     }
     startTransition(async () => {
-      const result = await createWorkflow({ name: name.trim() });
-      if (!result.ok) {
-        setError(result.error);
-        return;
+      const trimmed = name.trim();
+      let pendingId: string | undefined;
+      try {
+        if (onOptimisticCreate) {
+          pendingId = onOptimisticCreate(trimmed);
+        }
+        const result = await createWorkflow({ name: trimmed });
+        if (!result.ok) {
+          if (pendingId) {
+            onOptimisticCreateFailed?.(pendingId);
+          }
+          setError(result.error);
+          return;
+        }
+        if (pendingId) {
+          onResolveCreate?.(pendingId, result.data.id);
+        }
+        reset();
+        router.push(`/workflow/${result.data.id}`);
+      } catch (e) {
+        const message = e instanceof Error ? e.message : 'Failed to create workflow';
+        setError(message);
+        if (pendingId) {
+          onOptimisticCreateFailed?.(pendingId);
+        }
       }
-      reset();
-      router.push(`/workflow/${result.data.id}`);
     });
   }
 

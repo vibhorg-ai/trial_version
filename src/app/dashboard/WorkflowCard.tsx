@@ -3,7 +3,8 @@
 import { useState, useTransition } from 'react';
 import Link from 'next/link';
 import { Pencil, Trash2, Loader2 } from 'lucide-react';
-import { renameWorkflow, deleteWorkflow } from './actions';
+import { deleteWorkflow, renameWorkflow } from './actions';
+import { isPendingWorkflowId } from './workflowPending';
 
 export interface WorkflowCardProps {
   workflow: {
@@ -11,6 +12,9 @@ export interface WorkflowCardProps {
     name: string;
     updatedAt: Date | string;
   };
+  /** When provided, card delegates persistence to the dashboard optimistic layer. */
+  onRename?: (name: string) => void;
+  onDelete?: () => void;
 }
 
 type ViewState = 'view' | 'renaming' | 'confirmingDelete';
@@ -29,7 +33,8 @@ function formatRelativeEdited(date: Date | string): string {
   return `Last edited ${relative}`;
 }
 
-export function WorkflowCard({ workflow }: WorkflowCardProps) {
+export function WorkflowCard({ workflow, onRename, onDelete }: WorkflowCardProps) {
+  const isPendingRow = isPendingWorkflowId(workflow.id);
   const [view, setView] = useState<ViewState>('view');
   const [renameDraft, setRenameDraft] = useState(workflow.name);
   const [error, setError] = useState<string | null>(null);
@@ -50,6 +55,12 @@ export function WorkflowCard({ workflow }: WorkflowCardProps) {
     e.preventDefault();
     if (!renameDraft.trim()) {
       setError('Name is required');
+      return;
+    }
+    if (onRename) {
+      onRename(renameDraft.trim());
+      setError(null);
+      setView('view');
       return;
     }
     startTransition(async () => {
@@ -74,6 +85,12 @@ export function WorkflowCard({ workflow }: WorkflowCardProps) {
   }
 
   function confirmDelete() {
+    if (onDelete) {
+      onDelete();
+      setError(null);
+      setView('view');
+      return;
+    }
     startTransition(async () => {
       const result = await deleteWorkflow({ id: workflow.id });
       if (!result.ok) {
@@ -92,41 +109,53 @@ export function WorkflowCard({ workflow }: WorkflowCardProps) {
         {view === 'view' ? (
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 space-y-1">
-              <Link
-                href={`/workflow/${workflow.id}`}
-                className="text-base font-medium text-zinc-900 hover:text-violet-700"
-              >
-                {workflow.name}
-              </Link>
+              {isPendingRow ? (
+                <span className="text-base font-medium text-zinc-600">{workflow.name}</span>
+              ) : (
+                <Link
+                  href={`/workflow/${workflow.id}`}
+                  className="text-base font-medium text-zinc-900 hover:text-violet-700"
+                >
+                  {workflow.name}
+                </Link>
+              )}
               <div className="text-xs text-zinc-500">
                 {formatRelativeEdited(workflow.updatedAt)}
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              <Link
-                href={`/workflow/${workflow.id}`}
-                className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
-              >
-                Open
-              </Link>
-              <button
-                type="button"
-                aria-label="Rename workflow"
-                disabled={isPending}
-                onClick={openRename}
-                className="rounded-lg border border-zinc-200 p-2 text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
-              >
-                <Pencil aria-hidden className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                aria-label="Delete workflow"
-                disabled={isPending}
-                onClick={openDeleteConfirm}
-                className="rounded-lg border border-zinc-200 p-2 text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
-              >
-                <Trash2 aria-hidden className="h-4 w-4" />
-              </button>
+              {isPendingRow ? (
+                <span className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-medium text-zinc-400">
+                  Creating…
+                </span>
+              ) : (
+                <>
+                  <Link
+                    href={`/workflow/${workflow.id}`}
+                    className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-50"
+                  >
+                    Open
+                  </Link>
+                  <button
+                    type="button"
+                    aria-label="Rename workflow"
+                    disabled={isPending}
+                    onClick={openRename}
+                    className="rounded-lg border border-zinc-200 p-2 text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+                  >
+                    <Pencil aria-hidden className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Delete workflow"
+                    disabled={isPending}
+                    onClick={openDeleteConfirm}
+                    className="rounded-lg border border-zinc-200 p-2 text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+                  >
+                    <Trash2 aria-hidden className="h-4 w-4" />
+                  </button>
+                </>
+              )}
             </div>
           </div>
         ) : null}
