@@ -2,17 +2,7 @@ import { writeFile, mkdtemp } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { task } from '@trigger.dev/sdk';
-
-/**
- * Mandatory 30s delay required by the spec. Implemented as an in-process
- * sleep rather than `wait.for(...)` because Trigger.dev's wait-checkpoint
- * mechanism serializes/parks the run and resumes it in a fresh worker, which
- * adds 5–10s of resume overhead per crop on top of the actual 30s. The spec
- * mandates the *delay*, not the checkpoint, so we keep the delay and remove
- * the resume overhead.
- */
-const ARTIFICIAL_DELAY_MS = 30_000;
+import { task, wait } from '@trigger.dev/sdk';
 
 import { removeTmpDir } from './fs-tmp';
 import type { CropTaskPayload, CropTaskResult } from './types';
@@ -78,7 +68,7 @@ export const cropImageTask = task({
   id: 'crop-image',
   retry: { maxAttempts: 3 },
   run: async (payload: CropTaskPayload, _ctx): Promise<CropTaskResult> => {
-    await new Promise<void>((resolve) => setTimeout(resolve, ARTIFICIAL_DELAY_MS));
+    await wait.for({ seconds: 30 });
 
     const authSecret = process.env.TRANSLOADIT_AUTH_SECRET;
     const authKey = process.env.TRANSLOADIT_AUTH_KEY;
