@@ -17,6 +17,17 @@ import { useWorkflowStore } from '../../../lib/store/workflowStore';
 import type { WorkflowNode } from '../../../lib/schemas/node';
 import type { WorkflowEdge } from '../../../lib/schemas/edge';
 import { canConnectByIds, type CanConnectResult } from '../../../lib/dag/handles';
+import { RequestInputsNode } from '../../../components/canvas/nodes/RequestInputsNode';
+import { CropImageNode } from '../../../components/canvas/nodes/CropImageNode';
+import { GeminiNode } from '../../../components/canvas/nodes/GeminiNode';
+import { ResponseNode } from '../../../components/canvas/nodes/ResponseNode';
+
+const NODE_TYPES = {
+  'request-inputs': RequestInputsNode,
+  'crop-image': CropImageNode,
+  gemini: GeminiNode,
+  response: ResponseNode,
+} as const;
 
 type ConnectFailureReason = Extract<CanConnectResult, { ok: false }>['reason'];
 
@@ -36,19 +47,16 @@ function humanizeReason(reason: ConnectFailureReason): string {
 }
 
 /**
- * Maps our domain `WorkflowNode` (discriminated union) to React Flow's
- * generic `Node` type. We pass our `data` object through unchanged; node
- * type-specific rendering lives in custom node renderers (Phase 7).
- *
- * For now we use React Flow's "default" node type with a label that names
- * the domain type so each one is visually distinguishable.
+ * Maps our domain `WorkflowNode` to React Flow's `Node`. Custom renderers
+ * are registered via `nodeTypes`; `type` and `data` pass through unchanged.
  */
-function toRFNode(n: WorkflowNode): Node {
+function toRFNode(n: WorkflowNode, selectedNodeId: string | null): Node {
   return {
     id: n.id,
-    type: 'default',
+    type: n.type,
     position: n.position,
-    data: { label: n.type, original: n.data },
+    data: n.data,
+    selected: selectedNodeId === n.id,
   };
 }
 
@@ -67,6 +75,7 @@ export function Canvas() {
   // Read once, then derive React Flow shape via useMemo.
   const nodes = useWorkflowStore((s) => s.nodes);
   const edges = useWorkflowStore((s) => s.edges);
+  const selectedNodeId = useWorkflowStore((s) => s.selectedNodeId);
   const setNodePosition = useWorkflowStore((s) => s.setNodePosition);
   const setSelection = useWorkflowStore((s) => s.setSelection);
   const addEdge = useWorkflowStore((s) => s.addEdge);
@@ -82,7 +91,10 @@ export function Canvas() {
     };
   }, []);
 
-  const rfNodes = useMemo(() => nodes.map(toRFNode), [nodes]);
+  const rfNodes = useMemo(
+    () => nodes.map((n) => toRFNode(n, selectedNodeId)),
+    [nodes, selectedNodeId],
+  );
   const rfEdges = useMemo(() => edges.map(toRFEdge), [edges]);
 
   /**
@@ -169,6 +181,7 @@ export function Canvas() {
       <ReactFlow
         nodes={rfNodes}
         edges={rfEdges}
+        nodeTypes={NODE_TYPES}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeClick={onNodeClick}
@@ -185,7 +198,7 @@ export function Canvas() {
         <MiniMap
           nodeColor={(n) => {
             // Color-code by node type for the minimap.
-            switch (n.data?.label) {
+            switch (n.type) {
               case 'request-inputs':
                 return '#a78bfa'; // violet-400
               case 'crop-image':

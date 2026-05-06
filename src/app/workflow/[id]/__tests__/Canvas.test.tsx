@@ -13,18 +13,23 @@ vi.mock('reactflow', () => {
       children,
       nodes,
       edges,
+      nodeTypes,
       ...handlers
     }: Record<string, unknown> & {
       children?: React.ReactNode;
       nodes: unknown[];
       edges: unknown[];
+      nodeTypes?: Record<string, unknown>;
     }) => {
       Object.assign(rfHandlers, handlers);
+      const ntKeys =
+        nodeTypes && typeof nodeTypes === 'object' ? Object.keys(nodeTypes).sort().join(',') : '';
       return (
         <div
           data-testid="rf-root"
           data-nodes={JSON.stringify(nodes)}
           data-edges={JSON.stringify(edges)}
+          data-node-type-keys={ntKeys}
         >
           {children}
         </div>
@@ -115,11 +120,21 @@ describe('Canvas', () => {
     const passedEdges = JSON.parse(root.getAttribute('data-edges')!);
     expect(passedNodes).toHaveLength(2);
     expect(passedEdges).toHaveLength(0);
-    // Confirm our shape transform: data.label is the domain type.
-    expect(passedNodes[0].data.label).toBe('request-inputs');
-    expect(passedNodes[1].data.label).toBe('response');
+    // Domain node `type` and `data` pass through to React Flow.
+    expect(passedNodes[0].type).toBe('request-inputs');
+    expect(passedNodes[1].type).toBe('response');
+    expect(passedNodes[0].data).toEqual({ fields: [] });
+    expect(passedNodes[1].data).toEqual({ capturedValue: null });
     // Confirm position passes through.
     expect(passedNodes[1].position).toEqual({ x: 800, y: 0 });
+  });
+
+  it('registers custom nodeTypes on React Flow', () => {
+    render(<Canvas />);
+    const root = screen.getByTestId('rf-root');
+    expect(root.getAttribute('data-node-type-keys')).toBe(
+      'crop-image,gemini,request-inputs,response',
+    );
   });
 
   it('uses dot variant Background with gap=20 size=1.5', () => {
