@@ -2,12 +2,13 @@
 
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import Link from 'next/link';
-import { ChevronLeft, Download, Trash2, Upload } from 'lucide-react';
+import { ChevronLeft, Download, History, Trash2, Upload } from 'lucide-react';
 import { useWorkflowStore } from '../../../lib/store/workflowStore';
 import { WorkflowGraphSchema, type WorkflowGraph } from '../../../lib/schemas/workflow';
 import { Canvas } from './Canvas';
 import { RunButton } from '../../../components/canvas/RunButton';
 import { RealtimeBridge } from '../../../components/canvas/RealtimeBridge';
+import { HistoryPanel } from '../../../components/history/HistoryPanel';
 import { useCanvasKeyboard } from './useCanvasKeyboard';
 import { useAutoSave } from './useAutoSave';
 
@@ -33,6 +34,7 @@ export function CanvasShell({
   const nodes = useWorkflowStore((s) => s.nodes);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const selectedIsUndeletableNode = (() => {
     if (!selectedNodeId) return false;
@@ -141,6 +143,16 @@ export function CanvasShell({
             </span>
           )}
           <div className="ml-auto flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setHistoryOpen((v) => !v)}
+              aria-pressed={historyOpen}
+              aria-label="Toggle run history"
+              className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+            >
+              <History aria-hidden className="h-4 w-4" />
+              History
+            </button>
             <RunButton />
             <input
               ref={fileInputRef}
@@ -193,6 +205,11 @@ export function CanvasShell({
       <div className="flex-1 bg-white">
         <Canvas />
       </div>
+      <HistoryPanel
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        workflowId={workflowId}
+      />
     </div>
   );
 }

@@ -16,6 +16,14 @@ vi.mock('../../../../components/canvas/RealtimeBridge', () => ({
   RealtimeBridge: () => null,
 }));
 
+let lastHistoryPanelProps: { open: boolean; workflowId: string; onClose: () => void } | null = null;
+vi.mock('../../../../components/history/HistoryPanel', () => ({
+  HistoryPanel: (props: { open: boolean; workflowId: string; onClose: () => void }) => {
+    lastHistoryPanelProps = props;
+    return props.open ? <div data-testid="history-panel-open" /> : null;
+  },
+}));
+
 // Mock the Canvas to avoid React Flow.
 vi.mock('../Canvas', () => ({
   Canvas: () => <div data-testid="canvas-mock">canvas</div>,
@@ -44,6 +52,7 @@ const geminiData = {
 };
 
 beforeEach(() => {
+  lastHistoryPanelProps = null;
   useWorkflowStore.setState({
     workflowId: 'wf1',
     name: 'Test Workflow',
@@ -75,6 +84,35 @@ describe('CanvasShell', () => {
     expect(screen.getByText('Test Workflow')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /dashboard/i })).toHaveAttribute('href', '/dashboard');
     expect(screen.getByTestId('canvas-mock')).toBeInTheDocument();
+  });
+
+  it('shows a History toggle control', () => {
+    render(
+      <CanvasShell
+        workflowId="wf1"
+        workflowName="Test Workflow"
+        initialGraph={baseGraph}
+        updatedAt="2025-01-01T00:00:00.000Z"
+      />,
+    );
+    expect(screen.getByRole('button', { name: /toggle run history/i })).toBeInTheDocument();
+  });
+
+  it('opens the history panel when History is clicked', async () => {
+    const user = userEvent.setup();
+    render(
+      <CanvasShell
+        workflowId="wf1"
+        workflowName="Test Workflow"
+        initialGraph={baseGraph}
+        updatedAt="2025-01-01T00:00:00.000Z"
+      />,
+    );
+    await waitFor(() => expect(useWorkflowStore.getState().workflowId).toBe('wf1'));
+    await user.click(screen.getByRole('button', { name: /toggle run history/i }));
+    expect(screen.getByTestId('history-panel-open')).toBeInTheDocument();
+    expect(lastHistoryPanelProps?.open).toBe(true);
+    expect(lastHistoryPanelProps?.workflowId).toBe('wf1');
   });
 
   it('disables delete when nothing is selected', () => {
