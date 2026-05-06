@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { History, X } from 'lucide-react';
 import { useWorkflowStore } from '../../lib/store/workflowStore';
 import { RunListItem } from './RunListItem';
+import { HistoryListSkeleton } from '../ui/skeletons/HistoryListSkeleton';
 
 export interface RunSummary {
   id: string;
@@ -73,7 +74,9 @@ export function HistoryPanel({ open, onClose, workflowId }: HistoryPanelProps) {
       </header>
       <div className="flex-1 overflow-auto px-3 py-3">
         {loading && runs.length === 0 ? (
-          <p className="px-2 py-4 text-sm text-zinc-500">Loading…</p>
+          <div className="px-2 py-4">
+            <HistoryListSkeleton />
+          </div>
         ) : error ? (
           <p role="alert" className="px-2 py-4 text-sm text-red-600">
             {error}
