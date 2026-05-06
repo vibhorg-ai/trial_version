@@ -16,6 +16,8 @@
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",
     "db:check": "tsx scripts/check-db.ts",
+    "trigger:dev": "trigger.dev dev",
+    "trigger:deploy": "trigger.dev deploy",
     "prepare": "husky"
   },
   "lint-staged": {
