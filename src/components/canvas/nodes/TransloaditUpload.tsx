@@ -3,7 +3,13 @@
 import { useCallback, useId, useRef, useState, type ChangeEvent } from 'react';
 import { ImageIcon, Loader2, Trash2, Upload } from 'lucide-react';
 
-const ASSEMBLIES_URL = 'https://api2.transloadit.com/assemblies?expected=ASSEMBLY_COMPLETED';
+import {
+  resolveAssemblyBody,
+  resolveAssemblyUrl,
+  type AssemblyShape,
+} from '../../../lib/transloadit-assembly';
+
+const ASSEMBLIES_URL = 'https://api2.transloadit.com/assemblies';
 
 export type TransloaditUploadProps = {
   value: string | null;
@@ -19,16 +25,6 @@ function fileLabelFromUrl(url: string): string {
     /* ignore */
   }
   return 'Image';
-}
-
-function firstResultSslUrl(assembly: {
-  results?: Record<string, Array<{ ssl_url?: string }>>;
-}): string | null {
-  const results = assembly.results ?? {};
-  const stepKey = Object.keys(results)[0];
-  if (!stepKey) return null;
-  const first = results[stepKey]?.[0];
-  return first?.ssl_url ?? null;
 }
 
 export function TransloaditUpload({ value, onUpload, onClear }: TransloaditUploadProps) {
@@ -75,13 +71,10 @@ export function TransloaditUpload({ value, onUpload, onClear }: TransloaditUploa
           throw new Error(`Upload failed (${uploadRes.status})`);
         }
 
-        const assembly = (await uploadRes.json()) as {
-          error?: string;
-          message?: string;
-          results?: Record<string, Array<{ ssl_url?: string }>>;
-        };
+        const initial = (await uploadRes.json()) as AssemblyShape;
+        const assembly = await resolveAssemblyBody(initial);
 
-        const url = firstResultSslUrl(assembly);
+        const url = resolveAssemblyUrl(assembly);
         if (!url) {
           const reason = assembly.error ?? assembly.message ?? 'No file URL in assembly response';
           throw new Error(reason);

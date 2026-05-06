@@ -32,6 +32,9 @@ const eslintConfig = [
       '.trigger/**',
       'next-env.d.ts',
       'src/generated/**',
+      'playwright-report/**',
+      'test-results/**',
+      'tests/e2e/.auth/**',
     ],
   },
 ];

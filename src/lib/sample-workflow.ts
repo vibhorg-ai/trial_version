@@ -1,5 +1,6 @@
 import type { WorkflowGraph } from './schemas/workflow';
 import { WORKFLOW_SCHEMA_VERSION } from './schemas/workflow';
+import { DEFAULT_GEMINI_MODEL_ID } from './gemini-model';
 
 export const SAMPLE_WORKFLOW_NAME = 'Wireless Headphones Marketing';
 
@@ -42,11 +43,11 @@ export const SAMPLE_WORKFLOW_GRAPH: WorkflowGraph = {
       type: 'gemini',
       position: { x: 720, y: 80 },
       data: {
-        model: 'gemini-1.5-pro',
+        model: DEFAULT_GEMINI_MODEL_ID,
         prompt: "Describe this image's visual style in one sentence.",
         systemPrompt: 'You are a creative copywriter.',
         temperature: 0.7,
-        maxOutputTokens: 128,
+        maxOutputTokens: 512,
         topP: 0.95,
       },
     },
@@ -55,11 +56,11 @@ export const SAMPLE_WORKFLOW_GRAPH: WorkflowGraph = {
       type: 'gemini',
       position: { x: 720, y: 320 },
       data: {
-        model: 'gemini-1.5-pro',
+        model: DEFAULT_GEMINI_MODEL_ID,
         prompt: "Describe this image's visual style in one sentence.",
         systemPrompt: 'You are a creative copywriter.',
         temperature: 0.7,
-        maxOutputTokens: 128,
+        maxOutputTokens: 512,
         topP: 0.95,
       },
     },
@@ -68,11 +69,11 @@ export const SAMPLE_WORKFLOW_GRAPH: WorkflowGraph = {
       type: 'gemini',
       position: { x: 1040, y: 200 },
       data: {
-        model: 'gemini-1.5-pro',
+        model: DEFAULT_GEMINI_MODEL_ID,
         prompt: 'Write a punchy 10-word marketing tagline for: <topic injected via prompt edge>',
         systemPrompt: 'You are a creative copywriter.',
         temperature: 0.9,
-        maxOutputTokens: 64,
+        maxOutputTokens: 512,
         topP: 0.95,
       },
     },

@@ -19,6 +19,27 @@ const WorkflowGraphBaseSchema = z.object({
 
 export const WorkflowGraphSchema = WorkflowGraphBaseSchema.superRefine((graph, ctx) => {
   const byId = new Map(graph.nodes.map((n) => [n.id, n]));
+
+  // Request-Inputs field names must be unique within each node — they become
+  // the source-handle ids and the property keys when the run inputs snapshot
+  // is built. Duplicates would silently shadow each other in the DAG walk.
+  graph.nodes.forEach((node, nodeIndex) => {
+    if (node.type !== 'request-inputs') return;
+    const seen = new Map<string, number>();
+    node.data.fields.forEach((field, fieldIndex) => {
+      const prev = seen.get(field.name);
+      if (prev !== undefined) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Duplicate field name "${field.name}" in Request Inputs node`,
+          path: ['nodes', nodeIndex, 'data', 'fields', fieldIndex, 'name'],
+        });
+      } else {
+        seen.set(field.name, fieldIndex);
+      }
+    });
+  });
+
   graph.edges.forEach((edge, edgeIndex) => {
     const source = byId.get(edge.source);
     const target = byId.get(edge.target);

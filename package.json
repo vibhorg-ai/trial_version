@@ -13,9 +13,15 @@
     "test:all": "npm run test && npm run test:integration",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:install": "playwright install chromium",
+    "dom:dump-external": "tsx scripts/dump-external-dom.ts",
     "postinstall": "prisma generate",
     "db:generate": "prisma generate",
     "db:check": "tsx scripts/check-db.ts",
+    "db:migrate-gemini": "tsx scripts/migrate-gemini-model.ts",
+    "smoke": "cross-env NODE_OPTIONS=\"--use-system-ca\" tsx scripts/smoke-test.ts",
     "trigger:dev": "cross-env NODE_OPTIONS=\"--use-system-ca\" npx trigger.dev@4.4.5 dev",
     "trigger:deploy": "cross-env NODE_OPTIONS=\"--use-system-ca\" npx trigger.dev@4.4.5 deploy",
     "prepare": "husky"
@@ -60,6 +66,7 @@
     "zustand": "^5.0.13"
   },
   "devDependencies": {
+    "@clerk/testing": "^2.0.25",
     "@eslint/eslintrc": "^3",
     "@playwright/test": "^1.59.1",
     "@sentry/nextjs": "^10.51.0",

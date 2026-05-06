@@ -62,16 +62,18 @@ beforeEach(() => {
 describe('CropImageNode', () => {
   it('renders X/Y/W/H with defaults 0/0/100/100', () => {
     render(<CropHarness id="crop-1" />);
-    expect(screen.getByLabelText('X', { selector: 'input' })).toHaveValue(0);
-    expect(screen.getByLabelText('Y', { selector: 'input' })).toHaveValue(0);
-    expect(screen.getByLabelText('Width', { selector: 'input' })).toHaveValue(100);
-    expect(screen.getByLabelText('Height', { selector: 'input' })).toHaveValue(100);
+    // Galaxy spec uses "(%)" suffix on numeric crop labels — see
+    // docs/galaxy-pixel-spec.md.
+    expect(screen.getByLabelText('X (%)', { selector: 'input' })).toHaveValue(0);
+    expect(screen.getByLabelText('Y (%)', { selector: 'input' })).toHaveValue(0);
+    expect(screen.getByLabelText('Width (%)', { selector: 'input' })).toHaveValue(100);
+    expect(screen.getByLabelText('Height (%)', { selector: 'input' })).toHaveValue(100);
   });
 
   it('updates the store when a dimension input changes', async () => {
     const user = userEvent.setup();
     render(<CropHarness id="crop-1" />);
-    const x = screen.getByLabelText('X', { selector: 'input' });
+    const x = screen.getByLabelText('X (%)', { selector: 'input' });
     await user.clear(x);
     await user.type(x, '12');
     const node = useWorkflowStore.getState().nodes.find((n) => n.id === 'crop-1');
@@ -84,7 +86,7 @@ describe('CropImageNode', () => {
   it('clamps dimension values into 0–100', async () => {
     const user = userEvent.setup();
     render(<CropHarness id="crop-1" />);
-    const w = screen.getByLabelText('Width', { selector: 'input' });
+    const w = screen.getByLabelText('Width (%)', { selector: 'input' });
     await user.clear(w);
     await user.type(w, '150');
     const node = useWorkflowStore.getState().nodes.find((n) => n.id === 'crop-1');
@@ -134,5 +136,29 @@ describe('CropImageNode', () => {
     useWorkflowStore.setState({ selectedNodeId: 'crop-1' });
     render(<CropHarness id="crop-1" />);
     expect(screen.getByTestId('node-shell')).toHaveClass('is-selected');
+  });
+
+  it('renders the cropped image preview when nodeRunOutput has a url', () => {
+    useWorkflowStore.setState({
+      nodeRunOutput: {
+        'crop-1': { url: 'https://cdn.example/cropped.png' } as unknown as {
+          kind: 'image';
+          url: string;
+        },
+      },
+      nodeRunStatus: { 'crop-1': 'success' },
+    });
+    render(<CropHarness id="crop-1" />);
+    const out = screen.getByTestId('crop-output').querySelector('img')!;
+    expect(out).toHaveAttribute('src', 'https://cdn.example/cropped.png');
+  });
+
+  it('renders an error message when the crop run failed', () => {
+    useWorkflowStore.setState({
+      nodeRunStatus: { 'crop-1': 'failed' },
+      nodeRunError: { 'crop-1': 'Missing input image URL' },
+    });
+    render(<CropHarness id="crop-1" />);
+    expect(screen.getByTestId('crop-output-error')).toHaveTextContent('Missing input image URL');
   });
 });

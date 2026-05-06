@@ -15,6 +15,7 @@ beforeEach(() => {
     future: [],
     selectedNodeId: null,
     selectedEdgeId: null,
+    multiSelectedNodeIds: [],
     ...createRunSliceInitial(),
   });
 });
@@ -79,6 +80,32 @@ describe('RunButton', () => {
     await user.click(screen.getByRole('button', { name: /run options/i }));
     const item = screen.getByRole('menuitem', { name: /run single node/i });
     expect(item).toBeDisabled();
-    expect(item).toHaveAttribute('title', 'Select a node first');
+    expect(item).toHaveAttribute('title', 'Select a single node first');
+  });
+
+  it('enables Run Selected when 2+ nodes are multi-selected and dispatches SELECTED scope', async () => {
+    const user = userEvent.setup();
+    const startRun = vi
+      .spyOn(useWorkflowStore.getState(), 'startRun')
+      .mockResolvedValue({ ok: true });
+    useWorkflowStore.setState({ multiSelectedNodeIds: ['n1', 'n2'] });
+    render(<RunButton />);
+    await user.click(screen.getByRole('button', { name: /run options/i }));
+    const item = screen.getByRole('menuitem', { name: /run selected/i });
+    expect(item).toBeEnabled();
+    expect(item).toHaveTextContent('2 nodes');
+    await user.click(item);
+    expect(startRun).toHaveBeenCalledWith({
+      scope: 'SELECTED',
+      selectedNodeIds: ['n1', 'n2'],
+    });
+  });
+
+  it('disables Run Selected when fewer than 2 nodes are multi-selected', async () => {
+    const user = userEvent.setup();
+    render(<RunButton />);
+    await user.click(screen.getByRole('button', { name: /run options/i }));
+    const item = screen.getByRole('menuitem', { name: /run selected/i });
+    expect(item).toBeDisabled();
   });
 });

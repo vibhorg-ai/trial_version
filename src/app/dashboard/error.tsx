@@ -1,8 +1,8 @@
 'use client';
 
-import * as Sentry from '@sentry/nextjs';
 import { useEffect } from 'react';
 import { ErrorFallback } from '../../components/ErrorFallback';
+import { reportError } from '../../lib/reportError';
 
 export default function DashboardError({
   error,
@@ -12,7 +12,7 @@ export default function DashboardError({
   reset: () => void;
 }) {
   useEffect(() => {
-    Sentry.captureException(error);
+    reportError(error);
   }, [error]);
   return <ErrorFallback error={error} reset={reset} scope="dashboard" />;
 }

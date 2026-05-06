@@ -46,8 +46,9 @@ describe('ResponseNode', () => {
   });
 
   it('shows placeholder when there is no captured value', () => {
+    // Galaxy uses "No output yet" — we match it verbatim now.
     render(<ResponseNode {...staticProps} data={{ capturedValue: null }} />);
-    expect(screen.getByTestId('response-body')).toHaveTextContent('Awaiting workflow run…');
+    expect(screen.getByTestId('response-body')).toHaveTextContent('No output yet');
   });
 
   it('shows captured string value when present', () => {
@@ -65,5 +66,52 @@ describe('ResponseNode', () => {
     useWorkflowStore.setState({ selectedNodeId: 'resp-1' });
     render(<ResponseNode {...staticProps} data={{ capturedValue: null }} />);
     expect(screen.getByTestId('node-shell')).toHaveClass('is-selected');
+  });
+
+  it('prefers the live nodeRunOutput captured value over data.capturedValue', () => {
+    useWorkflowStore.setState({
+      nodeRunOutput: {
+        'resp-1': { capturedValue: 'live final answer' } as unknown as {
+          kind: 'text';
+          text: string;
+        },
+      },
+      nodeRunStatus: { 'resp-1': 'success' },
+    });
+    render(<ResponseNode {...staticProps} data={{ capturedValue: 'stale value' }} />);
+    expect(screen.getByTestId('response-body')).toHaveTextContent('live final answer');
+    expect(screen.getByTestId('response-body')).not.toHaveTextContent('stale value');
+  });
+
+  it('renders an image when the live output is an image url', () => {
+    useWorkflowStore.setState({
+      nodeRunOutput: {
+        'resp-1': { capturedValue: { url: 'https://cdn/x.png' } } as unknown as {
+          kind: 'image';
+          url: string;
+        },
+      },
+      nodeRunStatus: { 'resp-1': 'success' },
+    });
+    render(<ResponseNode {...staticProps} data={{ capturedValue: null }} />);
+    expect(screen.getByTestId('response-image')).toHaveAttribute('src', 'https://cdn/x.png');
+  });
+
+  it('renders a plain string output too (back-compat for direct text capture)', () => {
+    useWorkflowStore.setState({
+      nodeRunOutput: { 'resp-1': 'just a string' as unknown as { kind: 'text'; text: string } },
+      nodeRunStatus: { 'resp-1': 'success' },
+    });
+    render(<ResponseNode {...staticProps} data={{ capturedValue: null }} />);
+    expect(screen.getByTestId('response-body')).toHaveTextContent('just a string');
+  });
+
+  it('renders the run error when the response node failed', () => {
+    useWorkflowStore.setState({
+      nodeRunStatus: { 'resp-1': 'failed' },
+      nodeRunError: { 'resp-1': 'Upstream missing' },
+    });
+    render(<ResponseNode {...staticProps} data={{ capturedValue: null }} />);
+    expect(screen.getByTestId('response-error')).toHaveTextContent('Upstream missing');
   });
 });

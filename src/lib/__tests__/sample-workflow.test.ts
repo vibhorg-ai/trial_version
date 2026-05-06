@@ -33,6 +33,12 @@ describe('SAMPLE_WORKFLOW_GRAPH', () => {
     ]);
   });
 
+  it('uses the effective Gemini model for every Gemini node', () => {
+    const geminiNodes = SAMPLE_WORKFLOW_GRAPH.nodes.filter((n) => n.type === 'gemini');
+    expect(geminiNodes).toHaveLength(3);
+    expect(geminiNodes.every((n) => n.data.model === 'gemini-2.5-flash-lite')).toBe(true);
+  });
+
   it('is acyclic', () => {
     expect(hasCycle(SAMPLE_WORKFLOW_GRAPH.edges)).toBe(false);
   });

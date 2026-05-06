@@ -1,12 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  triggerAndWait: vi.fn(),
+  trigger: vi.fn(),
+  pollRunUntilDone: vi.fn(),
 }));
 
 vi.mock('@trigger.dev/sdk', () => ({
   task: (opts: { id: string; run: (p: unknown, c: unknown) => Promise<void> }) => opts,
-  tasks: { triggerAndWait: mocks.triggerAndWait },
+  tasks: { trigger: mocks.trigger },
+}));
+
+vi.mock('../poll-run', () => ({
+  pollRunUntilDone: mocks.pollRunUntilDone,
 }));
 
 vi.mock('../../lib/prisma', () => ({
@@ -51,12 +56,18 @@ describe('orchestratorTask', () => {
     vi.mocked(prisma.nodeRun.findFirst).mockReset();
     vi.mocked(prisma.nodeRun.create).mockReset();
     vi.mocked(prisma.nodeRun.update).mockReset();
-    mocks.triggerAndWait.mockReset();
+    mocks.trigger.mockReset();
+    mocks.pollRunUntilDone.mockReset();
 
     vi.mocked(prisma.nodeRun.findFirst).mockResolvedValue(null);
     vi.mocked(prisma.nodeRun.create).mockResolvedValue({} as never);
     vi.mocked(prisma.nodeRun.update).mockResolvedValue({} as never);
     vi.mocked(prisma.workflowRun.update).mockResolvedValue({} as never);
+
+    // Default: tasks.trigger returns a synthetic handle. Tests can override.
+    mocks.trigger.mockImplementation(async (taskId: string, payload: { nodeId?: string }) => ({
+      id: `run_${taskId}_${payload.nodeId ?? 'x'}`,
+    }));
   });
 
   it('loads WorkflowRun + Workflow via prisma', async () => {
@@ -92,7 +103,7 @@ describe('orchestratorTask', () => {
     });
   });
 
-  it('marks request-inputs SUCCESS without calling triggerAndWait', async () => {
+  it('marks request-inputs SUCCESS without calling tasks.trigger', async () => {
     const graph: WorkflowGraph = {
       schemaVersion: WORKFLOW_SCHEMA_VERSION,
       nodes: [
@@ -158,19 +169,20 @@ describe('orchestratorTask', () => {
       },
     } as never);
 
-    mocks.triggerAndWait.mockResolvedValue({
+    mocks.pollRunUntilDone.mockResolvedValue({
       ok: true,
       output: { kind: 'text', text: 'ai' },
     } as never);
 
     await runOrchestrator({ workflowRunId: 'wr1' });
 
-    expect(mocks.triggerAndWait).toHaveBeenCalledTimes(1);
-    expect(mocks.triggerAndWait).toHaveBeenCalledWith(
+    expect(mocks.trigger).toHaveBeenCalledTimes(1);
+    expect(mocks.trigger).toHaveBeenCalledWith(
       'gemini',
       expect.objectContaining({ prompt: 'from-run' }),
       expect.anything(),
     );
+    expect(mocks.pollRunUntilDone).toHaveBeenCalledTimes(1);
 
     const riSuccess = [
       ...vi.mocked(prisma.nodeRun.create).mock.calls,
@@ -183,7 +195,7 @@ describe('orchestratorTask', () => {
     expect(riSuccess).toBe(true);
   });
 
-  it('uses triggerAndWait for crop-image and records SUCCESS on WorkflowRun', async () => {
+  it('triggers crop-image task and records SUCCESS on WorkflowRun', async () => {
     const graph: WorkflowGraph = {
       schemaVersion: WORKFLOW_SCHEMA_VERSION,
       nodes: [
@@ -220,14 +232,14 @@ describe('orchestratorTask', () => {
       },
     } as never);
 
-    mocks.triggerAndWait.mockResolvedValue({
+    mocks.pollRunUntilDone.mockResolvedValue({
       ok: true,
       output: { url: 'https://example.com/out.jpg' },
     } as never);
 
     await runOrchestrator({ workflowRunId: 'wr1' });
 
-    expect(mocks.triggerAndWait).toHaveBeenCalledWith(
+    expect(mocks.trigger).toHaveBeenCalledWith(
       'crop-image',
       expect.objectContaining({
         workflowRunId: 'wr1',
@@ -300,11 +312,13 @@ describe('orchestratorTask', () => {
       },
     } as never);
 
-    mocks.triggerAndWait.mockImplementation(async (_id: string, payload: { nodeId: string }) => {
-      if (payload.nodeId === 'a') {
+    // mocks.trigger uses synthetic ids `run_gemini_a` / `run_gemini_b`. Branch
+    // the polling result based on the run id we generated.
+    mocks.pollRunUntilDone.mockImplementation(async (runId: string) => {
+      if (runId.endsWith('_a')) {
         return { ok: true, output: { kind: 'text', text: 'ok' } };
       }
-      return { ok: false, error: new Error('nope') };
+      return { ok: false, error: { message: 'nope' } };
     });
 
     await runOrchestrator({ workflowRunId: 'wr1' });
@@ -315,7 +329,7 @@ describe('orchestratorTask', () => {
     expect(partial).toBeDefined();
   });
 
-  it('resolves response locally (no triggerAndWait for response)', async () => {
+  it('resolves response locally (no tasks.trigger for response)', async () => {
     const graph: WorkflowGraph = {
       schemaVersion: WORKFLOW_SCHEMA_VERSION,
       nodes: [
@@ -373,14 +387,14 @@ describe('orchestratorTask', () => {
       },
     } as never);
 
-    mocks.triggerAndWait.mockResolvedValue({
+    mocks.pollRunUntilDone.mockResolvedValue({
       ok: true,
       output: { kind: 'text', text: 'final-text' },
     } as never);
 
     await runOrchestrator({ workflowRunId: 'wr1' });
 
-    expect(mocks.triggerAndWait).toHaveBeenCalledTimes(1);
+    expect(mocks.trigger).toHaveBeenCalledTimes(1);
 
     const responseCalls = vi
       .mocked(prisma.nodeRun.create)

@@ -21,15 +21,22 @@ export function CropImageNode({ id, data }: NodeProps<CropImageNodeData>) {
   const isSelected = useWorkflowStore((s) => s.selectedNodeId === id);
   const nodeRunStatus = useWorkflowStore((s) => s.nodeRunStatus[id] ?? 'idle');
   const baseShellStatus = nodeRunStatus === 'skipped' ? 'idle' : nodeRunStatus;
+  const nodeRunOutput = useWorkflowStore((s) => s.nodeRunOutput[id]);
+  const nodeRunError = useWorkflowStore((s) => s.nodeRunError[id]);
   const inputImageConnected = useWorkflowStore(
     useShallow((s) => s.edges.some((e) => e.target === id && e.targetHandle === 'input-image')),
   );
+
+  const croppedUrl =
+    nodeRunOutput && typeof nodeRunOutput === 'object' && 'url' in nodeRunOutput
+      ? (nodeRunOutput as { url: string }).url
+      : null;
 
   const wfNode = toWorkflowNode(id, data);
   const handles = listHandles(wfNode);
 
   const greyed = inputImageConnected;
-  const fieldClass = `w-full rounded border border-zinc-200 bg-white px-2 py-1.5 text-xs tabular-nums text-zinc-800 ${greyed ? 'is-greyed cursor-not-allowed opacity-45' : ''}`;
+  const fieldClass = `w-full rounded-lg border border-gray-200 bg-[#F5F5F5] px-3 py-2 text-sm tabular-nums text-gray-900 outline-none focus:border-indigo-500 ${greyed ? 'is-greyed' : ''}`;
 
   const setDim = (key: 'x' | 'y' | 'w' | 'h', raw: string) => {
     const n = raw === '' ? NaN : Number(raw);
@@ -41,18 +48,19 @@ export function CropImageNode({ id, data }: NodeProps<CropImageNodeData>) {
   return (
     <BaseNodeShell
       title="Crop Image"
-      subtitle="Percent bounds"
+      tooltip="Crop a percentage region out of the input image. Percentages are 0-100 and are measured from the top-left corner."
       icon={<Crop className="h-4 w-4" aria-hidden />}
+      titleWeight="semibold"
       handles={handles}
       selected={isSelected}
       runStatus={baseShellStatus}
     >
       <div
         data-testid="crop-params"
-        className={`grid grid-cols-2 gap-3 ${greyed ? 'is-greyed' : ''}`}
+        className={`grid grid-cols-2 gap-x-3 gap-y-3 ${greyed ? 'is-greyed' : ''}`}
       >
-        <label className="flex flex-col gap-1 text-xs text-zinc-600">
-          X
+        <label className="flex flex-col gap-1.5 text-xs font-medium text-gray-900">
+          X (%)
           <input
             type="number"
             min={0}
@@ -63,8 +71,8 @@ export function CropImageNode({ id, data }: NodeProps<CropImageNodeData>) {
             onChange={(e) => setDim('x', e.target.value)}
           />
         </label>
-        <label className="flex flex-col gap-1 text-xs text-zinc-600">
-          Y
+        <label className="flex flex-col gap-1.5 text-xs font-medium text-gray-900">
+          Y (%)
           <input
             type="number"
             min={0}
@@ -75,8 +83,8 @@ export function CropImageNode({ id, data }: NodeProps<CropImageNodeData>) {
             onChange={(e) => setDim('y', e.target.value)}
           />
         </label>
-        <label className="flex flex-col gap-1 text-xs text-zinc-600">
-          Width
+        <label className="flex flex-col gap-1.5 text-xs font-medium text-gray-900">
+          Width (%)
           <input
             type="number"
             min={0}
@@ -87,8 +95,8 @@ export function CropImageNode({ id, data }: NodeProps<CropImageNodeData>) {
             onChange={(e) => setDim('w', e.target.value)}
           />
         </label>
-        <label className="flex flex-col gap-1 text-xs text-zinc-600">
-          Height
+        <label className="flex flex-col gap-1.5 text-xs font-medium text-gray-900">
+          Height (%)
           <input
             type="number"
             min={0}
@@ -100,6 +108,37 @@ export function CropImageNode({ id, data }: NodeProps<CropImageNodeData>) {
           />
         </label>
       </div>
+
+      {croppedUrl ? (
+        <div data-testid="crop-output" className="mt-4 space-y-2 rounded-lg bg-[#F5F5F5] p-3">
+          <div className="flex items-center gap-1.5">
+            <span className="min-w-0 flex-1 truncate text-sm text-gray-900">Cropped output</span>
+            <a
+              href={croppedUrl}
+              target="_blank"
+              rel="noreferrer"
+              onMouseDown={(e) => e.stopPropagation()}
+              className="text-xs font-medium text-indigo-600 hover:underline"
+            >
+              Open
+            </a>
+          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={croppedUrl}
+            alt="Cropped result"
+            className="block max-h-56 w-full rounded border border-gray-200 bg-white object-contain"
+          />
+        </div>
+      ) : nodeRunError ? (
+        <div
+          data-testid="crop-output-error"
+          className="nowheel mt-4 max-h-40 overflow-auto rounded-lg border border-red-200 bg-red-50/80 px-3 py-2 text-xs text-red-700"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          {nodeRunError}
+        </div>
+      ) : null}
     </BaseNodeShell>
   );
 }

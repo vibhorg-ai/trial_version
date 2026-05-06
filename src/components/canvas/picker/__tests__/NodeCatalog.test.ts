@@ -34,7 +34,7 @@ describe('NodeCatalog', () => {
     const parsed = WorkflowNodeSchema.parse(node);
     expect(parsed.type).toBe('gemini');
     expect(parsed.data).toMatchObject({
-      model: 'gemini-3.1-pro',
+      model: 'gemini-2.5-flash-lite',
       prompt: '',
       systemPrompt: '',
     });

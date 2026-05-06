@@ -1,5 +1,6 @@
 import { Crop, Sparkles, Video, Music, FileText, type LucideIcon } from 'lucide-react';
 import type { WorkflowNode } from '../../../lib/schemas/node';
+import { DEFAULT_GEMINI_MODEL_ID } from '../../../lib/gemini-model';
 
 export type CatalogTab = 'recent' | 'image' | 'video' | 'audio' | 'llms' | 'others';
 
@@ -36,8 +37,8 @@ export const CATALOG: CatalogEntry[] = [
   },
   {
     id: 'gemini-3.1-pro',
-    name: 'Gemini 3.1 Pro',
-    description: 'Run a Gemini text/vision generation step.',
+    name: 'Gemini',
+    description: `Run a ${DEFAULT_GEMINI_MODEL_ID} text/vision generation step.`,
     tab: 'llms',
     icon: Sparkles,
     enabled: true,
@@ -46,7 +47,7 @@ export const CATALOG: CatalogEntry[] = [
       type: 'gemini',
       position,
       data: {
-        model: 'gemini-3.1-pro',
+        model: DEFAULT_GEMINI_MODEL_ID,
         prompt: '',
         systemPrompt: '',
         temperature: 0.7,

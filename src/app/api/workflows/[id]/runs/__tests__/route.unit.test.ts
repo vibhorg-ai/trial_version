@@ -29,6 +29,14 @@ import { auth } from '@clerk/nextjs/server';
 import { prisma } from '../../../../../../lib/prisma';
 import { POST } from '../route';
 
+// happy-dom (vitest's default browser env) strips forbidden request headers
+// like Origin/Referer when set via the Request init. Setting them after
+// construction works around that so we can exercise the same-origin guard.
+function withOrigin(req: Request, origin = 'http://localhost'): Request {
+  req.headers.set('origin', origin);
+  return req;
+}
+
 const validGraph = {
   schemaVersion: 1 as const,
   nodes: [
@@ -56,18 +64,50 @@ describe('POST /api/workflows/[id]/runs', () => {
     mocks.createPublicToken.mockResolvedValue('pat_mock');
   });
 
-  it('returns 401 when unauthenticated', async () => {
-    vi.mocked(auth).mockResolvedValue({ userId: null } as never);
+  it('returns 403 when Origin header is missing (CSRF protection)', async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: 'u1' } as never);
 
     const req = new Request('http://localhost/api/workflows/wf/runs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        scope: 'FULL',
-        selectedNodeIds: [],
-        inputs: {},
-      }),
+      body: JSON.stringify({ scope: 'FULL', selectedNodeIds: [], inputs: {} }),
     });
+
+    const res = await POST(req, { params: Promise.resolve({ id: 'wf1' }) });
+    expect(res.status).toBe(403);
+    expect(vi.mocked(prisma.workflow.findUnique)).not.toHaveBeenCalled();
+  });
+
+  it('returns 403 when Origin points elsewhere (CSRF protection)', async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: 'u1' } as never);
+
+    const req = withOrigin(
+      new Request('http://localhost/api/workflows/wf/runs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scope: 'FULL', selectedNodeIds: [], inputs: {} }),
+      }),
+      'https://evil.example',
+    );
+
+    const res = await POST(req, { params: Promise.resolve({ id: 'wf1' }) });
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 401 when unauthenticated', async () => {
+    vi.mocked(auth).mockResolvedValue({ userId: null } as never);
+
+    const req = withOrigin(
+      new Request('http://localhost/api/workflows/wf/runs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scope: 'FULL',
+          selectedNodeIds: [],
+          inputs: {},
+        }),
+      }),
+    );
 
     const res = await POST(req, { params: Promise.resolve({ id: 'wf1' }) });
     expect(res.status).toBe(401);
@@ -77,15 +117,17 @@ describe('POST /api/workflows/[id]/runs', () => {
     vi.mocked(auth).mockResolvedValue({ userId: 'u1' } as never);
     vi.mocked(prisma.workflow.findUnique).mockResolvedValue(null);
 
-    const req = new Request('http://localhost/api/workflows/wf/runs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        scope: 'FULL',
-        selectedNodeIds: [],
-        inputs: {},
+    const req = withOrigin(
+      new Request('http://localhost/api/workflows/wf/runs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scope: 'FULL',
+          selectedNodeIds: [],
+          inputs: {},
+        }),
       }),
-    });
+    );
 
     const res = await POST(req, { params: Promise.resolve({ id: 'wf_missing' }) });
     expect(res.status).toBe(404);
@@ -94,11 +136,13 @@ describe('POST /api/workflows/[id]/runs', () => {
   it('returns 400 for invalid body shape', async () => {
     vi.mocked(auth).mockResolvedValue({ userId: 'u1' } as never);
 
-    const req = new Request('http://localhost/api/workflows/wf/runs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ scope: 'FULL' }),
-    });
+    const req = withOrigin(
+      new Request('http://localhost/api/workflows/wf/runs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scope: 'FULL' }),
+      }),
+    );
 
     const res = await POST(req, { params: Promise.resolve({ id: 'wf1' }) });
     expect(res.status).toBe(400);
@@ -115,15 +159,17 @@ describe('POST /api/workflows/[id]/runs', () => {
       updatedAt: new Date(),
     } as never);
 
-    const req = new Request('http://localhost/api/workflows/wf/runs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        scope: 'SELECTED',
-        selectedNodeIds: ['ghost'],
-        inputs: {},
+    const req = withOrigin(
+      new Request('http://localhost/api/workflows/wf/runs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scope: 'SELECTED',
+          selectedNodeIds: ['ghost'],
+          inputs: {},
+        }),
       }),
-    });
+    );
 
     const res = await POST(req, { params: Promise.resolve({ id: 'wf1' }) });
     expect(res.status).toBe(400);
@@ -159,15 +205,17 @@ describe('POST /api/workflows/[id]/runs', () => {
 
     vi.mocked(prisma.workflowRun.update).mockResolvedValue({} as never);
 
-    const req = new Request('http://localhost/api/workflows/wf/runs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        scope: 'FULL',
-        selectedNodeIds: [],
-        inputs: { topic: 'x' },
+    const req = withOrigin(
+      new Request('http://localhost/api/workflows/wf/runs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scope: 'FULL',
+          selectedNodeIds: [],
+          inputs: { topic: 'x' },
+        }),
       }),
-    });
+    );
 
     const res = await POST(req, { params: Promise.resolve({ id: 'wf1' }) });
     expect(res.status).toBe(200);
@@ -211,18 +259,20 @@ describe('POST /api/workflows/[id]/runs', () => {
       } as never,
     ]);
 
-    const req = new Request('http://localhost/api/workflows/wf/runs', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Idempotency-Key': 'k1',
-      },
-      body: JSON.stringify({
-        scope: 'FULL',
-        selectedNodeIds: [],
-        inputs: {},
+    const req = withOrigin(
+      new Request('http://localhost/api/workflows/wf/runs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Idempotency-Key': 'k1',
+        },
+        body: JSON.stringify({
+          scope: 'FULL',
+          selectedNodeIds: [],
+          inputs: {},
+        }),
       }),
-    });
+    );
 
     const res = await POST(req, { params: Promise.resolve({ id: 'wf1' }) });
     expect(res.status).toBe(200);

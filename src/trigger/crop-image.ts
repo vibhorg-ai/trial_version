@@ -9,6 +9,37 @@ import type { CropTaskPayload, CropTaskResult } from './types';
 import { spawnFfmpegProcess } from './spawn-ffmpeg';
 import { uploadFileToTransloadit } from './transloadit-upload';
 
+function clamp01(v: number): number {
+  if (Number.isNaN(v)) return 0;
+  if (v < 0) return 0;
+  if (v > 1) return 1;
+  return v;
+}
+
+/**
+ * Build an ffmpeg `crop` filter expression that interprets w/h/x/y as
+ * percentages (0-100) of the input image's dimensions. We use ffmpeg's
+ * built-in `iw` / `ih` variables so that we don't need a separate ffprobe
+ * step to discover the source size; ffmpeg's expression evaluator
+ * substitutes them per-frame at filter time.
+ *
+ * The values are clamped to [0,1] after dividing by 100 so a malformed
+ * input like `w=120` cannot produce a negative or out-of-bounds crop
+ * region (which ffmpeg would otherwise reject with `Invalid too big or
+ * non positive size for width '...' or height '...'`).
+ */
+export function buildCropFilter(w: number, h: number, x: number, y: number): string {
+  const wp = clamp01(w / 100);
+  const hp = clamp01(h / 100);
+  const xp = clamp01(x / 100);
+  const yp = clamp01(y / 100);
+  // Guard against zero-size crops (e.g. user enters w=0): fall back to 1px
+  // to keep ffmpeg happy; the upstream UI prevents this in practice.
+  const wExpr = wp <= 0 ? '1' : `iw*${wp}`;
+  const hExpr = hp <= 0 ? '1' : `ih*${hp}`;
+  return `crop=${wExpr}:${hExpr}:iw*${xp}:ih*${yp}`;
+}
+
 function runFfmpegCrop(
   ffmpegPath: string,
   inputPath: string,
@@ -18,7 +49,7 @@ function runFfmpegCrop(
   x: number,
   y: number,
 ): Promise<void> {
-  const vf = `crop=${w}:${h}:${x}:${y}`;
+  const vf = buildCropFilter(w, h, x, y);
   const args = ['-y', '-i', inputPath, '-vf', vf, outputPath];
   return new Promise((resolve, reject) => {
     const child = spawnFfmpegProcess(ffmpegPath, args);
@@ -70,7 +101,7 @@ export const cropImageTask = task({
         payload.y,
       );
 
-      const url = await uploadFileToTransloadit(outputPath);
+      const url = await uploadFileToTransloadit(outputPath, { category: 'crop-output' });
       return { url };
     } finally {
       await removeTmpDir(tmpRoot);

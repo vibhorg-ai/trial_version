@@ -112,6 +112,7 @@ describe('RequestInputsNode', () => {
         .mockResolvedValueOnce(
           new Response(
             JSON.stringify({
+              ok: 'ASSEMBLY_COMPLETED',
               results: { ':original': [{ ssl_url: 'https://cdn.example.com/out.png' }] },
             }),
             { status: 200 },

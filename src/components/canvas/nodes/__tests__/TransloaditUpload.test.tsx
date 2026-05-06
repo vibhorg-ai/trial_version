@@ -53,6 +53,7 @@ describe('TransloaditUpload', () => {
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
+            ok: 'ASSEMBLY_COMPLETED',
             results: { import: [{ ssl_url: 'https://cdn.example.com/up.png' }] },
           }),
           { status: 200 },
@@ -84,6 +85,7 @@ describe('TransloaditUpload', () => {
       .mockResolvedValueOnce(
         new Response(
           JSON.stringify({
+            ok: 'ASSEMBLY_COMPLETED',
             results: { step_a: [{ ssl_url: 'https://cdn.example.com/final.jpg' }] },
           }),
           { status: 200 },
@@ -98,6 +100,75 @@ describe('TransloaditUpload', () => {
 
     await waitFor(() => {
       expect(onUpload).toHaveBeenCalledWith('https://cdn.example.com/final.jpg');
+    });
+  });
+
+  it('polls assembly URL when initial response is still executing', async () => {
+    const user = userEvent.setup();
+    const onUpload = vi.fn();
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ params: '{}', signature: 'sha384:ab' }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            ok: 'ASSEMBLY_EXECUTING',
+            assembly_ssl_url: 'https://api2.transloadit.com/assemblies/abc',
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            ok: 'ASSEMBLY_COMPLETED',
+            uploads: [{ ssl_url: 'https://cdn.example.com/poll.png' }],
+          }),
+          { status: 200 },
+        ),
+      );
+
+    render(<TransloaditUpload value={null} onUpload={onUpload} onClear={vi.fn()} />);
+    await user.upload(
+      screen.getByLabelText('Choose image file'),
+      new File(['x'], 'a.png', { type: 'image/png' }),
+    );
+
+    await waitFor(
+      () => {
+        expect(onUpload).toHaveBeenCalledWith('https://cdn.example.com/poll.png');
+      },
+      { timeout: 5_000 },
+    );
+  });
+
+  it('falls back to uploads[0].ssl_url when results is empty', async () => {
+    const user = userEvent.setup();
+    const onUpload = vi.fn();
+    vi.mocked(fetch)
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ params: '{}', signature: 'sha384:cd' }), { status: 200 }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            ok: 'ASSEMBLY_COMPLETED',
+            results: {},
+            uploads: [{ ssl_url: 'https://cdn.example.com/raw-upload.png' }],
+          }),
+          { status: 200 },
+        ),
+      );
+
+    render(<TransloaditUpload value={null} onUpload={onUpload} onClear={vi.fn()} />);
+    await user.upload(
+      screen.getByLabelText('Choose image file'),
+      new File(['x'], 'a.png', { type: 'image/png' }),
+    );
+
+    await waitFor(() => {
+      expect(onUpload).toHaveBeenCalledWith('https://cdn.example.com/raw-upload.png');
     });
   });
 

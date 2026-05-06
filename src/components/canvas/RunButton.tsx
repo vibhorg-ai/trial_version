@@ -9,9 +9,11 @@ export function RunButton() {
   const startRun = useWorkflowStore((s) => s.startRun);
   const runStatus = useWorkflowStore((s) => s.runStatus);
   const selectedNodeId = useWorkflowStore((s) => s.selectedNodeId);
+  const multiSelectedNodeIds = useWorkflowStore((s) => s.multiSelectedNodeIds);
   const isBusy = runStatus === 'starting' || runStatus === 'running';
 
-  const canRunSingle = selectedNodeId !== null && !isBusy;
+  const canRunSingle = selectedNodeId !== null && !isBusy && multiSelectedNodeIds.length <= 1;
+  const canRunSelected = multiSelectedNodeIds.length >= 2 && !isBusy;
   const canRunFull = !isBusy;
 
   return (
@@ -39,13 +41,13 @@ export function RunButton() {
       {menuOpen ? (
         <div
           role="menu"
-          className="absolute right-0 top-full z-20 mt-1 w-56 rounded-lg border border-zinc-200 bg-white py-1 shadow-md"
+          className="absolute right-0 top-full z-20 mt-1 w-60 rounded-lg border border-zinc-200 bg-white py-1 shadow-md"
         >
           <button
             type="button"
             role="menuitem"
             disabled={!canRunSingle}
-            title={!canRunSingle ? 'Select a node first' : undefined}
+            title={!canRunSingle ? 'Select a single node first' : undefined}
             className="block w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={() => {
               setMenuOpen(false);
@@ -56,8 +58,29 @@ export function RunButton() {
           >
             Run Single Node
             {!canRunSingle ? (
-              <span className="ml-2 text-xs text-zinc-400">(select a node)</span>
+              <span className="ml-2 text-xs text-zinc-400">(select one)</span>
             ) : null}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!canRunSelected}
+            title={!canRunSelected ? 'Shift-click 2+ nodes to enable Run Selected' : undefined}
+            className="block w-full px-3 py-2 text-left text-sm text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={() => {
+              setMenuOpen(false);
+              if (canRunSelected) {
+                void startRun({
+                  scope: 'SELECTED',
+                  selectedNodeIds: [...multiSelectedNodeIds],
+                });
+              }
+            }}
+          >
+            Run Selected
+            <span className="ml-2 text-xs text-zinc-400">
+              {canRunSelected ? `(${multiSelectedNodeIds.length} nodes)` : '(shift-click 2+ nodes)'}
+            </span>
           </button>
         </div>
       ) : null}

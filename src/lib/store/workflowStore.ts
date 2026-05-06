@@ -47,6 +47,12 @@ interface WorkflowState {
   // ui slice
   selectedNodeId: string | null;
   selectedEdgeId: string | null;
+  /**
+   * Set of nodes the user has explicitly multi-selected (e.g. shift-click in
+   * React Flow, drag-select). Used by Run Selected. Always a superset of
+   * `selectedNodeId` when non-empty so the canvas can highlight consistently.
+   */
+  multiSelectedNodeIds: string[];
   // run slice (Trigger.dev realtime + POST /runs)
   activeRunId: string | null;
   triggerRunId: string | null;
@@ -69,6 +75,7 @@ interface WorkflowState {
   addEdge: (edge: WorkflowEdge) => void;
   removeEdge: (edgeId: string) => void;
   setSelection: (selection: { nodeId?: string | null; edgeId?: string | null }) => void;
+  setMultiSelection: (nodeIds: string[]) => void;
   undo: () => void;
   redo: () => void;
   startRun: (args: {
@@ -76,6 +83,7 @@ interface WorkflowState {
     selectedNodeIds: string[];
   }) => Promise<{ ok: true } | { ok: false; error: string }>;
   ingestRealtimeUpdate: (update: RealtimeRunIngestPayload) => void;
+  hydrateRunFromServer: (workflowRunId: string) => Promise<void>;
   clearRun: () => void;
   // export helpers
   toGraph: () => WorkflowGraph;
@@ -164,6 +172,7 @@ export const useWorkflowStore = create<WorkflowState>()(
     future: [],
     selectedNodeId: null,
     selectedEdgeId: null,
+    multiSelectedNodeIds: [],
     ...createRunSliceInitial(),
 
     hydrate: ({ workflowId, name, graph, updatedAt }) =>
@@ -247,6 +256,22 @@ export const useWorkflowStore = create<WorkflowState>()(
       set((state) => {
         if (nodeId !== undefined) state.selectedNodeId = nodeId;
         if (edgeId !== undefined) state.selectedEdgeId = edgeId;
+        // Single-click selection clears any prior multi-select set so the
+        // run-button "Run Selected" doesn't silently reuse a stale set.
+        if (nodeId !== undefined && nodeId !== null) {
+          state.multiSelectedNodeIds = [];
+        }
+      }),
+
+    setMultiSelection: (nodeIds) =>
+      set((state) => {
+        state.multiSelectedNodeIds = [...nodeIds];
+        if (nodeIds.length === 1) {
+          state.selectedNodeId = nodeIds[0];
+        } else if (nodeIds.length === 0) {
+          // Don't auto-clear single-select on empty multi to avoid fighting
+          // with React Flow's own selection-change events on each click.
+        }
       }),
 
     undo: () =>
@@ -277,8 +302,23 @@ export const useWorkflowStore = create<WorkflowState>()(
     },
 
     startRun: async ({ scope, selectedNodeIds }) => {
-      const { workflowId } = get();
+      const { workflowId, nodes } = get();
       if (!workflowId) return { ok: false, error: 'No workflow loaded' };
+
+      // Harvest current request-inputs values from the live graph so that the
+      // most-recently-typed values flow to the orchestrator even before the
+      // background autosave has flushed them to the server.
+      const inputs: Record<string, string | null> = {};
+      for (const n of nodes) {
+        if (n.type !== 'request-inputs') continue;
+        for (const f of n.data.fields) {
+          if (f.fieldType === 'text_field') {
+            inputs[f.name] = f.value;
+          } else {
+            inputs[f.name] = f.value;
+          }
+        }
+      }
 
       set((state) => {
         state.runStatus = 'starting';
@@ -294,7 +334,7 @@ export const useWorkflowStore = create<WorkflowState>()(
         const res = await fetch(`/api/workflows/${workflowId}/runs`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ scope, selectedNodeIds, inputs: {} }),
+          body: JSON.stringify({ scope, selectedNodeIds, inputs }),
         });
         if (!res.ok) {
           const text = await res.text();
@@ -327,6 +367,42 @@ export const useWorkflowStore = create<WorkflowState>()(
       set((state) => {
         applyRunIngest(state, update);
       }),
+
+    hydrateRunFromServer: async (workflowRunId) => {
+      try {
+        const res = await fetch(`/api/runs/${workflowRunId}/nodes`);
+        if (!res.ok) return;
+        const body = (await res.json()) as {
+          nodes: Array<{
+            nodeId: string;
+            status: string;
+            output: unknown;
+            errorMessage: string | null;
+          }>;
+        };
+        set((state) => {
+          for (const n of body.nodes) {
+            // Don't downgrade an already-known terminal status; just fill in
+            // any missing outputs/errors that realtime didn't deliver (notably
+            // the response node, whose value is captured server-side only).
+            if (n.output !== null && n.output !== undefined) {
+              state.nodeRunOutput[n.nodeId] = n.output as NodeOutput;
+            }
+            if (n.errorMessage) {
+              state.nodeRunError[n.nodeId] = n.errorMessage;
+            }
+            if (!state.nodeRunStatus[n.nodeId]) {
+              if (n.status === 'SUCCESS') state.nodeRunStatus[n.nodeId] = 'success';
+              else if (n.status === 'FAILED') state.nodeRunStatus[n.nodeId] = 'failed';
+              else if (n.status === 'SKIPPED') state.nodeRunStatus[n.nodeId] = 'skipped';
+              else if (n.status === 'RUNNING') state.nodeRunStatus[n.nodeId] = 'running';
+            }
+          }
+        });
+      } catch {
+        // best-effort; realtime is the primary path
+      }
+    },
 
     clearRun: () =>
       set((state) => {

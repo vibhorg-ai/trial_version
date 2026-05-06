@@ -4,6 +4,7 @@ import { CreateWorkflowRequestSchema, type WorkflowDetail } from '../../../lib/s
 import { hasCycle } from '../../../lib/dag/cycle';
 import { prisma } from '../../../lib/prisma';
 import { logger } from '../../../lib/logger';
+import { checkSameOrigin } from '../../../lib/security/origin';
 import type { Prisma } from '../../../generated/prisma';
 
 export async function GET(_req: Request): Promise<NextResponse> {
@@ -39,6 +40,10 @@ export async function GET(_req: Request): Promise<NextResponse> {
 }
 
 export async function POST(req: Request): Promise<NextResponse> {
+  const origin = checkSameOrigin(req);
+  if (!origin.ok) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
   const { userId } = await auth();
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

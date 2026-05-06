@@ -116,17 +116,20 @@ export function CanvasShell({
   const saveStatus = useAutoSave();
 
   return (
-    <div className="flex h-screen flex-col">
-      <header className="flex items-center gap-4 border-b border-zinc-200 bg-white px-4 py-3">
+    <div className="flex h-screen flex-col bg-white">
+      <header className="flex items-center gap-3 border-b border-zinc-200 bg-white px-5 py-2.5">
         <Link
           href="/dashboard"
-          className="inline-flex items-center gap-1 text-sm font-medium text-zinc-600 hover:text-zinc-900"
+          aria-label="Back to dashboard"
+          className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-[13px] font-medium text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900"
         >
           <ChevronLeft aria-hidden className="h-4 w-4" />
-          Dashboard
+          <span>Dashboard</span>
         </Link>
-        <div className="flex flex-1 items-center gap-3">
-          <h1 className="text-lg font-semibold text-zinc-900">{name || workflowName}</h1>
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <h1 className="truncate text-[15px] font-semibold text-zinc-900">
+            {name || workflowName}
+          </h1>
           {saveStatus === 'saving' && (
             <span className="text-xs font-medium text-zinc-500" aria-live="polite">
               Saving…
@@ -142,54 +145,56 @@ export function CanvasShell({
               Save failed
             </span>
           )}
-          <div className="ml-auto flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setHistoryOpen((v) => !v)}
-              aria-pressed={historyOpen}
-              aria-label="Toggle run history"
-              className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
-            >
-              <History aria-hidden className="h-4 w-4" />
-              History
-            </button>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setHistoryOpen((v) => !v)}
+            aria-pressed={historyOpen}
+            aria-label="Toggle run history"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-[13px] font-medium text-zinc-700 hover:bg-zinc-50"
+          >
+            <History aria-hidden className="h-3.5 w-3.5" />
+            History
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json"
+            onChange={handleFileChange}
+            className="hidden"
+            aria-label="Import workflow JSON file"
+          />
+          <button
+            type="button"
+            onClick={handleImportClick}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-[13px] font-medium text-zinc-700 hover:bg-zinc-50"
+            aria-label="Import workflow from JSON"
+          >
+            <Upload aria-hidden className="h-3.5 w-3.5" />
+            Import
+          </button>
+          <button
+            type="button"
+            onClick={handleExport}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-[13px] font-medium text-zinc-700 hover:bg-zinc-50"
+            aria-label="Export workflow as JSON"
+          >
+            <Download aria-hidden className="h-3.5 w-3.5" />
+            Export
+          </button>
+          <button
+            type="button"
+            onClick={handleDelete}
+            disabled={!canDelete}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-[13px] font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40"
+            aria-label="Delete selected"
+          >
+            <Trash2 aria-hidden className="h-3.5 w-3.5" />
+            Delete
+          </button>
+          <div className="ml-1">
             <RunButton />
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="application/json"
-              onChange={handleFileChange}
-              className="hidden"
-              aria-label="Import workflow JSON file"
-            />
-            <button
-              type="button"
-              onClick={handleImportClick}
-              className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
-              aria-label="Import workflow from JSON"
-            >
-              <Upload aria-hidden className="h-4 w-4" />
-              Import
-            </button>
-            <button
-              type="button"
-              onClick={handleExport}
-              className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
-              aria-label="Export workflow as JSON"
-            >
-              <Download aria-hidden className="h-4 w-4" />
-              Export
-            </button>
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={!canDelete}
-              className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40"
-              aria-label="Delete selected"
-            >
-              <Trash2 aria-hidden className="h-4 w-4" />
-              Delete
-            </button>
           </div>
         </div>
       </header>
@@ -202,7 +207,7 @@ export function CanvasShell({
         </div>
       ) : null}
       <RealtimeBridge />
-      <div className="flex-1 bg-white">
+      <div className="workflow-canvas relative flex-1 overflow-hidden bg-[#F4F4F4]">
         <Canvas />
       </div>
       <HistoryPanel

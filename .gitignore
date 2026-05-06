@@ -30,6 +30,10 @@ src/generated/
 coverage/
 playwright-report/
 test-results/
+tests/e2e/.auth/
+
+# Local DOM dumps (may contain logged-in UI / PII)
+scripts/.playwright-dumps/
 
 # ESLint cache
 .eslintcache

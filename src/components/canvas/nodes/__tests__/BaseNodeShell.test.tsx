@@ -16,14 +16,16 @@ const handles: HandleSpec[] = [
 ];
 
 describe('BaseNodeShell', () => {
-  it('renders title and subtitle', () => {
+  it('renders title and tooltip and body', () => {
     render(
-      <BaseNodeShell title="Test Node" subtitle="A subtitle" handles={[]}>
+      <BaseNodeShell title="Test Node" tooltip="A helpful tooltip" handles={[]}>
         <span>body</span>
       </BaseNodeShell>,
     );
     expect(screen.getByText('Test Node')).toBeInTheDocument();
-    expect(screen.getByText('A subtitle')).toBeInTheDocument();
+    // Tooltip is exposed via aria-label / title, not visible text — Galaxy
+    // shows it on hover only.
+    expect(screen.getByLabelText('A helpful tooltip')).toBeInTheDocument();
     expect(screen.getByText('body')).toBeInTheDocument();
   });
 

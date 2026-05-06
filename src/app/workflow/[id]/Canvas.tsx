@@ -14,9 +14,9 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { useWorkflowStore } from '../../../lib/store/workflowStore';
-import type { WorkflowNode } from '../../../lib/schemas/node';
 import type { WorkflowEdge } from '../../../lib/schemas/edge';
 import { canConnectByIds, type CanConnectResult } from '../../../lib/dag/handles';
+import { hasCycle } from '../../../lib/dag/cycle';
 import { RequestInputsNode } from '../../../components/canvas/nodes/RequestInputsNode';
 import { CropImageNode } from '../../../components/canvas/nodes/CropImageNode';
 import { GeminiNode } from '../../../components/canvas/nodes/GeminiNode';
@@ -47,20 +47,6 @@ function humanizeReason(reason: ConnectFailureReason): string {
   }
 }
 
-/**
- * Maps our domain `WorkflowNode` to React Flow's `Node`. Custom renderers
- * are registered via `nodeTypes`; `type` and `data` pass through unchanged.
- */
-function toRFNode(n: WorkflowNode, selectedNodeId: string | null): Node {
-  return {
-    id: n.id,
-    type: n.type,
-    position: n.position,
-    data: n.data,
-    selected: selectedNodeId === n.id,
-  };
-}
-
 function toRFEdge(e: WorkflowEdge): Edge {
   return {
     id: e.id,
@@ -69,6 +55,12 @@ function toRFEdge(e: WorkflowEdge): Edge {
     sourceHandle: e.sourceHandle,
     targetHandle: e.targetHandle,
     type: 'default',
+    // The original spec mandates animated edges; we keep the animation but
+    // recolour to indigo-500 (#6366f1) so it matches Galaxy's brand accent
+    // (`workflow-accent-500`) instead of the violet we used previously.
+    animated: true,
+    className: 'workflow-edge workflow-edge--animated',
+    style: { stroke: '#6366f1', strokeWidth: 2, opacity: 0.8 },
   };
 }
 
@@ -79,6 +71,7 @@ export function Canvas() {
   const selectedNodeId = useWorkflowStore((s) => s.selectedNodeId);
   const setNodePosition = useWorkflowStore((s) => s.setNodePosition);
   const setSelection = useWorkflowStore((s) => s.setSelection);
+  const setMultiSelection = useWorkflowStore((s) => s.setMultiSelection);
   const addEdge = useWorkflowStore((s) => s.addEdge);
 
   const [connectError, setConnectError] = useState<string | null>(null);
@@ -92,29 +85,77 @@ export function Canvas() {
     };
   }, []);
 
-  const rfNodes = useMemo(
-    () => nodes.map((n) => toRFNode(n, selectedNodeId)),
-    [nodes, selectedNodeId],
+  // Override map for in-progress drags: nodeId -> live position. We can't
+  // write the dragged position into the store on every frame (that would
+  // create a 60Hz autosave storm) and we can't omit it (React Flow re-renders
+  // from the `nodes` prop, so the node would snap back on every drag tick).
+  // Instead, we hold transient positions in component state and merge them
+  // over the store-derived list in `rfNodes` below. On drag-end we commit to
+  // the store and clear the override.
+  const [dragOverrides, setDragOverrides] = useState<ReadonlyMap<string, { x: number; y: number }>>(
+    () => new Map(),
   );
+
+  const rfNodes = useMemo(
+    () =>
+      nodes.map((n) => {
+        const override = dragOverrides.get(n.id);
+        return {
+          id: n.id,
+          type: n.type,
+          position: override ?? n.position,
+          data: n.data,
+          selected: selectedNodeId === n.id,
+        } satisfies Node;
+      }),
+    [nodes, selectedNodeId, dragOverrides],
+  );
+
   const rfEdges = useMemo(() => edges.map(toRFEdge), [edges]);
 
   /**
-   * Handle React Flow's internal change events. We only act on POSITION
-   * changes — dragging a node updates the store's position. Other changes
-   * (selection, dimensions) are RF-internal and we let RF manage them.
+   * Handle React Flow's internal change events.
+   *
+   * - Position changes with `dragging: true` populate the override map so the
+   *   node follows the cursor in real time.
+   * - Position changes with `dragging: false` (release) commit the final
+   *   position to the store and clear the override.
+   * - Selection / dimension changes are RF-internal and we let RF manage
+   *   them; our `selected` flag is recomputed from `selectedNodeId`.
    */
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      for (const change of changes) {
-        if (change.type === 'position' && change.position && !change.dragging) {
-          // `dragging: false` means the user has released — commit position.
+      const positionChanges = changes.filter(
+        (
+          c,
+        ): c is Extract<NodeChange, { type: 'position' }> & {
+          position: { x: number; y: number };
+        } => c.type === 'position' && !!c.position,
+      );
+      if (positionChanges.length === 0) return;
+
+      setDragOverrides((prev) => {
+        const next = new Map(prev);
+        let changed = false;
+        for (const change of positionChanges) {
+          if (change.dragging === false) {
+            if (next.has(change.id)) {
+              next.delete(change.id);
+              changed = true;
+            }
+          } else {
+            next.set(change.id, change.position);
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+
+      for (const change of positionChanges) {
+        if (change.dragging === false) {
           setNodePosition(change.id, change.position);
         }
       }
-      // Note: We don't apply changes to local state because rfNodes is
-      // derived from the store (memoized). The store is the source of truth.
-      // If we needed live drag preview we'd need a local hover state — but
-      // RF's internal handling already provides smooth dragging.
     },
     [setNodePosition],
   );
@@ -165,16 +206,29 @@ export function Canvas() {
         return;
       }
 
-      const id = `edge-${conn.source}-${conn.sourceHandle}__${conn.target}-${conn.targetHandle}-${Date.now()}`;
-      addEdge({
-        id,
+      const candidateEdge = {
+        id: `edge-${conn.source}-${conn.sourceHandle}__${conn.target}-${conn.targetHandle}-${Date.now()}`,
         source: conn.source,
         target: conn.target,
         sourceHandle: conn.sourceHandle,
         targetHandle: conn.targetHandle,
-      });
+      };
+
+      if (hasCycle([...edges, candidateEdge])) {
+        setConnectError('Cannot connect: workflow cycles are not allowed');
+        if (connectErrorClearRef.current !== null) {
+          clearTimeout(connectErrorClearRef.current);
+        }
+        connectErrorClearRef.current = globalThis.setTimeout(() => {
+          setConnectError(null);
+          connectErrorClearRef.current = null;
+        }, 3000);
+        return;
+      }
+
+      addEdge(candidateEdge);
     },
-    [nodes, addEdge],
+    [nodes, edges, addEdge],
   );
 
   return (
@@ -189,31 +243,43 @@ export function Canvas() {
         onEdgeClick={onEdgeClick}
         onPaneClick={onPaneClick}
         onConnect={onConnect}
+        onSelectionChange={({ nodes: selNodes }) => {
+          if (selNodes.length > 1) {
+            setMultiSelection(selNodes.map((n) => n.id));
+          } else if (selNodes.length === 0) {
+            setMultiSelection([]);
+          }
+        }}
+        multiSelectionKeyCode="Shift"
         fitView
         fitViewOptions={{ padding: 0.2, duration: 0 }}
         attributionPosition="bottom-left"
         proOptions={{ hideAttribution: false }}
       >
-        <Background variant={BackgroundVariant.Dots} gap={20} size={1.5} />
-        <Controls />
+        <Background variant={BackgroundVariant.Dots} gap={19} size={0.8} color="#cacaca" />
+        <Controls position="bottom-left" showInteractive={false} className="rf-controls" />
         <MiniMap
+          position="bottom-right"
+          maskColor="rgba(244, 244, 245, 0.6)"
           nodeColor={(n) => {
-            // Color-code by node type for the minimap.
             switch (n.type) {
               case 'request-inputs':
-                return '#a78bfa'; // violet-400
+                return '#a78bfa';
               case 'crop-image':
-                return '#34d399'; // emerald-400
+                return '#34d399';
               case 'gemini':
-                return '#60a5fa'; // blue-400
+                return '#60a5fa';
               case 'response':
-                return '#fb923c'; // orange-400
+                return '#fb923c';
               default:
-                return '#a1a1aa'; // zinc-400
+                return '#a1a1aa';
             }
           }}
+          nodeStrokeColor="#e4e4e7"
+          nodeStrokeWidth={1}
           pannable
           zoomable
+          className="rf-minimap"
         />
       </ReactFlow>
       <BottomToolbar />

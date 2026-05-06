@@ -446,6 +446,64 @@ describe('workflowStore', () => {
       expect(s.runStatus).toBe('running');
     });
 
+    it('startRun harvests current request-inputs field values into the inputs payload', async () => {
+      const fetchMock = vi.fn(() =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              workflowRunId: 'wr1',
+              triggerRunId: 'tr1',
+              publicAccessToken: 'tok',
+            }),
+        } as Response),
+      );
+      vi.stubGlobal('fetch', fetchMock);
+
+      const graph = {
+        schemaVersion: 1 as const,
+        nodes: [
+          {
+            id: 'request-inputs',
+            type: 'request-inputs' as const,
+            position: { x: 0, y: 0 },
+            data: {
+              fields: [
+                { fieldType: 'text_field' as const, name: 'topic', value: 'cats' },
+                {
+                  fieldType: 'image_field' as const,
+                  name: 'product_image',
+                  value: 'https://cdn/x.png',
+                },
+              ],
+            },
+          },
+          {
+            id: 'response',
+            type: 'response' as const,
+            position: { x: 1, y: 0 },
+            data: { capturedValue: null },
+          },
+        ],
+        edges: [],
+      };
+      useWorkflowStore.getState().hydrate({
+        workflowId: 'wf-h',
+        name: '',
+        graph,
+        updatedAt: '',
+      });
+
+      await useWorkflowStore.getState().startRun({ scope: 'FULL', selectedNodeIds: [] });
+
+      const firstCall = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+      const sentBody = JSON.parse(firstCall[1].body as string);
+      expect(sentBody.inputs).toEqual({
+        topic: 'cats',
+        product_image: 'https://cdn/x.png',
+      });
+    });
+
     it('startRun on non-OK sets runStatus failed and returns error', async () => {
       vi.stubGlobal(
         'fetch',
@@ -517,6 +575,72 @@ describe('workflowStore', () => {
       });
       expect(useWorkflowStore.getState().runStatus).toBe('success');
       expect(useWorkflowStore.getState().nodeRunStatus).toEqual({});
+    });
+
+    it('hydrateRunFromServer fills missing outputs without downgrading known statuses', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() =>
+          Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve({
+                nodes: [
+                  {
+                    nodeId: 'gem-1',
+                    status: 'SUCCESS',
+                    output: { kind: 'text', text: 'final' },
+                    errorMessage: null,
+                  },
+                  {
+                    nodeId: 'response',
+                    status: 'SUCCESS',
+                    output: { capturedValue: 'final' },
+                    errorMessage: null,
+                  },
+                  {
+                    nodeId: 'crop-2',
+                    status: 'FAILED',
+                    output: null,
+                    errorMessage: 'Missing input image URL',
+                  },
+                ],
+              }),
+          } as Response),
+        ),
+      );
+
+      // gem-1 already has running from realtime; should not get clobbered.
+      useWorkflowStore.setState({
+        nodeRunStatus: { 'gem-1': 'running' },
+      });
+
+      await useWorkflowStore.getState().hydrateRunFromServer('wr-1');
+
+      const s = useWorkflowStore.getState();
+      expect(s.nodeRunOutput['gem-1']).toEqual({ kind: 'text', text: 'final' });
+      expect(s.nodeRunOutput.response).toEqual({ capturedValue: 'final' });
+      expect(s.nodeRunStatus.response).toBe('success');
+      expect(s.nodeRunStatus['crop-2']).toBe('failed');
+      expect(s.nodeRunError['crop-2']).toBe('Missing input image URL');
+      // pre-existing status is preserved (no downgrade from running -> success)
+      expect(s.nodeRunStatus['gem-1']).toBe('running');
+    });
+
+    it('hydrateRunFromServer is a no-op when the API returns non-OK', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(() =>
+          Promise.resolve({
+            ok: false,
+            json: () => Promise.resolve({}),
+          } as Response),
+        ),
+      );
+      await useWorkflowStore.getState().hydrateRunFromServer('wr-x');
+      const s = useWorkflowStore.getState();
+      expect(s.nodeRunOutput).toEqual({});
+      expect(s.nodeRunError).toEqual({});
     });
 
     it('clearRun resets all run fields', () => {

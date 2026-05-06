@@ -36,6 +36,17 @@ beforeEach(() => {
     error: undefined,
     stop: vi.fn(),
   });
+  // Default fetch stub for hydrateRunFromServer; tests that need a richer
+  // body override it explicitly.
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ nodes: [] }),
+      } as Response),
+    ),
+  );
 });
 
 describe('RealtimeBridge', () => {
@@ -93,6 +104,56 @@ describe('RealtimeBridge', () => {
 
     await waitFor(() => {
       expect(useWorkflowStore.getState().runStatus).toBe('success');
+    });
+  });
+
+  it('hydrates the response node value via /api/runs/:id/nodes once the orchestrator run completes', async () => {
+    const fetchMock = vi.fn(() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            nodes: [
+              {
+                nodeId: 'response',
+                status: 'SUCCESS',
+                output: { capturedValue: 'final answer' },
+                errorMessage: null,
+              },
+            ],
+          }),
+      } as Response),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const fakeRun = {
+      id: 'orch',
+      taskIdentifier: 'workflow-run',
+      status: 'COMPLETED',
+      tags: ['workflowRunId:wr1'],
+    };
+    rtMocks.useRealtimeRun.mockReturnValue({
+      run: fakeRun,
+      error: undefined,
+      stop: vi.fn(),
+    } as unknown as ReturnType<typeof rtMocks.useRealtimeRun>);
+
+    useWorkflowStore.setState({
+      triggerRunId: 'tr1',
+      publicAccessToken: 'tok',
+      activeRunId: 'wr1',
+      runStatus: 'running',
+    });
+
+    render(<RealtimeBridge />);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith('/api/runs/wr1/nodes');
+    });
+    await waitFor(() => {
+      expect(useWorkflowStore.getState().nodeRunOutput.response).toEqual({
+        capturedValue: 'final answer',
+      });
     });
   });
 

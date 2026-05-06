@@ -130,6 +130,34 @@ describe('Canvas', () => {
     expect(passedNodes[1].position).toEqual({ x: 800, y: 0 });
   });
 
+  it('renders workflow edges as animated purple Galaxy-style edges', () => {
+    useWorkflowStore.setState({
+      edges: [
+        {
+          id: 'e1',
+          source: 'request-inputs',
+          target: 'response',
+          sourceHandle: 'topic',
+          targetHandle: 'result',
+        },
+      ],
+    });
+
+    render(<Canvas />);
+
+    const root = screen.getByTestId('rf-root');
+    const passedEdges = JSON.parse(root.getAttribute('data-edges')!);
+    expect(passedEdges[0]).toEqual(
+      expect.objectContaining({
+        animated: true,
+        className: 'workflow-edge workflow-edge--animated',
+        // Galaxy's brand accent is indigo-500 (#6366f1); we apply opacity 0.8
+        // exactly like Galaxy's edge paths.
+        style: { stroke: '#6366f1', strokeWidth: 2, opacity: 0.8 },
+      }),
+    );
+  });
+
   it('registers custom nodeTypes on React Flow', () => {
     render(<Canvas />);
     const root = screen.getByTestId('rf-root');
@@ -138,11 +166,14 @@ describe('Canvas', () => {
     );
   });
 
-  it('uses dot variant Background with gap=20 size=1.5', () => {
+  it('uses dot variant Background with Galaxy-style gap=19 size=0.8', () => {
+    // Values lifted directly from the live Galaxy DOM dump:
+    //   <pattern width="19.17" height="19.17">
+    //     <circle r="0.77" class="fill-[#cacaca]"/>
     render(<Canvas />);
     const bg = screen.getByTestId('rf-background');
-    expect(bg).toHaveAttribute('data-gap', '20');
-    expect(bg).toHaveAttribute('data-size', '1.5');
+    expect(bg).toHaveAttribute('data-gap', '19');
+    expect(bg).toHaveAttribute('data-size', '0.8');
   });
 
   it('reflects subsequent store updates', () => {
@@ -274,6 +305,73 @@ describe('Canvas', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(
       'Cannot connect: handle types are incompatible',
     );
+  });
+
+  it('onConnect blocks cycle-creating edges before adding them to the store', async () => {
+    useWorkflowStore.setState({
+      nodes: [
+        {
+          id: 'gem1',
+          type: 'gemini',
+          position: { x: 0, y: 0 },
+          data: geminiData,
+        },
+      ],
+      edges: [],
+    });
+    render(<Canvas />);
+
+    const onConnect = rfHandlers.onConnect as (c: {
+      source: string | null;
+      target: string | null;
+      sourceHandle: string | null;
+      targetHandle: string | null;
+    }) => void;
+
+    await act(() => {
+      onConnect({
+        source: 'gem1',
+        target: 'gem1',
+        sourceHandle: 'response',
+        targetHandle: 'prompt',
+      });
+    });
+
+    expect(useWorkflowStore.getState().edges).toHaveLength(0);
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Cannot connect: workflow cycles are not allowed',
+    );
+  });
+
+  it('onNodesChange commits the final position to the store on drag-end', () => {
+    useWorkflowStore.setState({
+      nodes: [
+        {
+          id: 'gem1',
+          type: 'gemini',
+          position: { x: 100, y: 100 },
+          data: geminiData,
+        },
+      ],
+      edges: [],
+    });
+    render(<Canvas />);
+    const onNodesChange = rfHandlers.onNodesChange as (
+      changes: Array<{
+        id: string;
+        type: string;
+        position?: { x: number; y: number };
+        dragging?: boolean;
+      }>,
+    ) => void;
+    // Simulate a mid-drag move: position should NOT be committed yet.
+    onNodesChange([{ id: 'gem1', type: 'position', position: { x: 250, y: 250 }, dragging: true }]);
+    expect(useWorkflowStore.getState().nodes[0].position).toEqual({ x: 100, y: 100 });
+    // Simulate drag release: position commits to store.
+    onNodesChange([
+      { id: 'gem1', type: 'position', position: { x: 300, y: 320 }, dragging: false },
+    ]);
+    expect(useWorkflowStore.getState().nodes[0].position).toEqual({ x: 300, y: 320 });
   });
 
   it('onConnect with missing source/target/handles is a no-op', () => {

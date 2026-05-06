@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { DEFAULT_GEMINI_MODEL_ID } from '../gemini-model';
 
 // XY position used by all React Flow nodes.
 export const PositionSchema = z.object({
@@ -45,7 +46,7 @@ export const CropImageNodeDataSchema = z.object({
 
 // ─── Gemini node ───────────────────────────────────────────────────────
 export const GeminiNodeDataSchema = z.object({
-  model: z.string().default('gemini-1.5-pro'),
+  model: z.string().default(DEFAULT_GEMINI_MODEL_ID),
   // Manual fallback values used when corresponding handle is not connected.
   prompt: z.string().default(''),
   systemPrompt: z.string().default(''),

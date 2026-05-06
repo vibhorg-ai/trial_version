@@ -11,8 +11,9 @@ import { walkDag, type DagFireOutput } from '../lib/dag/walk-dag';
 import type { NodeRunStatus } from '../lib/dag/ready';
 
 import { computeFinalStatus, markNodeRun } from './helpers';
-import type { cropImageTask } from './crop-image';
-import type { geminiTask } from './gemini';
+import { pollRunUntilDone } from './poll-run';
+import type { CropTaskResult } from './types';
+import type { GeminiTaskResult } from './types';
 import type { CropTaskPayload, GeminiTaskPayload, OrchestratorPayload } from './types';
 
 /**
@@ -33,9 +34,40 @@ function jsonSnapshot(value: unknown): Prisma.InputJsonValue {
 }
 
 /**
- * Child work is awaited with {@link tasks.triggerAndWait} so the DAG can chain
- * outputs. {@link import('./helpers').fireChildTask} stays trigger-only for
- * fire-and-forget call sites.
+ * Minimum time between two Gemini `tasks.trigger` calls within a single
+ * orchestrator run. Google's free-tier quota is enforced per-minute, but
+ * within that window the rate-limiter is sensitive to micro-bursts: three
+ * sibling Gemini nodes firing in the same 50ms tick all hit Google nearly
+ * simultaneously and sometimes one is rejected with 429 before the other two
+ * have even reserved their token. Spacing fires by ~750ms gives the limiter
+ * time to register each call as separate and avoids spurious 429s on fast
+ * runs. We still preserve true parallelism — the second fire kicks off long
+ * before the first one finishes (model latency is multiple seconds).
+ */
+const GEMINI_FIRE_SPACING_MS = 750;
+let nextGeminiFireAt = 0;
+
+/** Get the time we should wait before firing the next Gemini child run. The
+ *  `now` parameter is injectable so tests can verify the spacing logic
+ *  without sleeping. Mutates module state intentionally — the orchestrator
+ *  runs in a single Trigger.dev process, so a module-scoped slot is fine. */
+export function nextGeminiSlot(now: number = Date.now()): number {
+  const slot = Math.max(now, nextGeminiFireAt);
+  nextGeminiFireAt = slot + GEMINI_FIRE_SPACING_MS;
+  return slot - now; // ms to sleep
+}
+
+/** Reset module state — only for tests. */
+export function __resetGeminiSpacingForTests(): void {
+  nextGeminiFireAt = 0;
+}
+
+/**
+ * Child work is fired with {@link tasks.trigger} (no `wait`) and awaited via
+ * polling the Trigger.dev Runs API. We avoid `tasks.triggerAndWait` because v4
+ * forbids parallel waits within a single parent run, which would defeat the
+ * wave-walker's whole-graph concurrency model. {@link pollRunUntilDone} is a
+ * regular Promise — multiple in-flight polls coexist trivially.
  */
 async function fireExecutableNode(
   workflowRunId: string,
@@ -70,12 +102,11 @@ async function fireExecutableNode(
     });
 
     const payload: CropTaskPayload = { workflowRunId, nodeId: node.id, inputImageUrl, x, y, w, h };
-    const runResult = await tasks.triggerAndWait<typeof cropImageTask>('crop-image', payload, {
-      tags,
-    });
+    const handle = await tasks.trigger('crop-image', payload, { tags });
+    const runResult = await pollRunUntilDone<CropTaskResult>(handle.id);
 
     if (!runResult.ok) {
-      const msg = toErrorMessage(runResult.error);
+      const msg = runResult.error.message;
       await markNodeRun({
         workflowRunId,
         nodeId: node.id,
@@ -111,6 +142,7 @@ async function fireExecutableNode(
     const payload: GeminiTaskPayload = {
       workflowRunId,
       nodeId: node.id,
+      model: p.model,
       prompt: p.prompt,
       systemPrompt: p.system || undefined,
       temperature: p.temperature,
@@ -119,10 +151,19 @@ async function fireExecutableNode(
       visionImageUrls: p.vision,
     };
 
-    const runResult = await tasks.triggerAndWait<typeof geminiTask>('gemini', payload, { tags });
+    // Spread parallel sibling fires across ~750ms each so we don't punch a
+    // micro-burst into Google's per-minute rate limiter. See
+    // GEMINI_FIRE_SPACING_MS comment for rationale.
+    const waitMs = nextGeminiSlot();
+    if (waitMs > 0) {
+      await new Promise<void>((resolve) => setTimeout(resolve, waitMs));
+    }
+
+    const handle = await tasks.trigger('gemini', payload, { tags });
+    const runResult = await pollRunUntilDone<GeminiTaskResult>(handle.id);
 
     if (!runResult.ok) {
-      const msg = toErrorMessage(runResult.error);
+      const msg = runResult.error.message;
       await markNodeRun({
         workflowRunId,
         nodeId: node.id,

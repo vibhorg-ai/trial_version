@@ -58,7 +58,7 @@ describe('BottomToolbar', () => {
     const added = after[after.length - 1];
     expect(added.type).toBe('gemini');
     expect(added.data).toMatchObject({
-      model: 'gemini-3.1-pro',
+      model: 'gemini-2.5-flash-lite',
       prompt: '',
       systemPrompt: '',
     });

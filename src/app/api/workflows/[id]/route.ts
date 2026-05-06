@@ -5,6 +5,7 @@ import { WorkflowGraphSchema } from '../../../../lib/schemas/workflow';
 import { hasCycle } from '../../../../lib/dag/cycle';
 import { prisma } from '../../../../lib/prisma';
 import { logger } from '../../../../lib/logger';
+import { checkSameOrigin } from '../../../../lib/security/origin';
 import { Prisma } from '../../../../generated/prisma';
 
 const NOT_FOUND_BODY = { error: 'Workflow not found' } as const;
@@ -59,6 +60,10 @@ export async function PUT(
   req: Request,
   ctx: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
+  const origin = checkSameOrigin(req);
+  if (!origin.ok) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
   const { userId } = await auth();
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -133,9 +138,13 @@ export async function PUT(
 }
 
 export async function DELETE(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
+  const origin = checkSameOrigin(req);
+  if (!origin.ok) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
   const { userId } = await auth();
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

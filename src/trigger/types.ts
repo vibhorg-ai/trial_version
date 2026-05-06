@@ -15,6 +15,7 @@ export interface CropTaskResult {
 export interface GeminiTaskPayload {
   workflowRunId: string;
   nodeId: string;
+  model: string;
   prompt: string;
   systemPrompt?: string;
   temperature: number;
