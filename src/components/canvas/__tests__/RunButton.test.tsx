@@ -30,6 +30,16 @@ describe('RunButton', () => {
     expect(screen.getByRole('button', { name: /run workflow/i })).toBeInTheDocument();
   });
 
+  it('toolbar variant runs full workflow from the icon button', async () => {
+    const user = userEvent.setup();
+    const startRun = vi
+      .spyOn(useWorkflowStore.getState(), 'startRun')
+      .mockResolvedValue({ ok: true });
+    render(<RunButton variant="toolbar" />);
+    await user.click(screen.getByRole('button', { name: /run workflow/i }));
+    expect(startRun).toHaveBeenCalledWith({ scope: 'FULL', selectedNodeIds: [] });
+  });
+
   it('clicking the main button calls startRun with FULL scope', async () => {
     const user = userEvent.setup();
     const startRun = vi

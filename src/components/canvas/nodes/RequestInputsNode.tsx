@@ -5,6 +5,7 @@ import type { NodeProps } from 'reactflow';
 import type { z } from 'zod';
 import { FileText, Image as ImageIcon, Plus, Trash2 } from 'lucide-react';
 import { BaseNodeShell } from './BaseNodeShell';
+import { WorkflowAnchoredHandle } from './WorkflowAnchoredHandle';
 import { listHandles } from '../../../lib/dag/handles';
 import type { WorkflowNode } from '../../../lib/schemas/node';
 import { RequestInputsNodeDataSchema } from '../../../lib/schemas/node';
@@ -58,18 +59,21 @@ export function RequestInputsNode({ id, data }: NodeProps<RequestInputsNodeData>
       title="Request-Inputs"
       tooltip="Define the input fields for your workflow. These become the request parameters when running via Playground or API."
       handles={handles}
+      embeddedHandles
       selected={isSelected}
       runStatus={baseShellStatus}
     >
       <div className="flex w-full flex-col gap-4">
         {data.fields.map((field, index) => {
           const nameErr = fieldNameError(field.name, allNames, index);
+          const outSpec = handles.find((h) => h.id === field.name);
           return (
             <div
               key={`field-${index}`}
               data-testid={`request-field-row-${field.name}`}
-              className="flex w-full min-w-0 flex-col gap-2"
+              className="relative flex w-full min-w-0 flex-col gap-2"
             >
+              {outSpec ? <WorkflowAnchoredHandle spec={outSpec} anchor="right" /> : null}
               <div className="flex w-full min-w-0 items-center gap-2">
                 {field.fieldType === 'text_field' ? (
                   <FileText className="h-3.5 w-3.5 shrink-0 text-gray-400" aria-hidden />

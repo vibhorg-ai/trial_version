@@ -33,26 +33,26 @@ describe('nextGeminiSlot', () => {
     expect(nextGeminiSlot(1_000_000)).toBe(0);
   });
 
-  it('returns 750ms for the second call when fired at the same instant', () => {
+  it('returns configured spacing for the second call when fired at the same instant', () => {
     nextGeminiSlot(1_000_000);
-    expect(nextGeminiSlot(1_000_000)).toBe(750);
+    expect(nextGeminiSlot(1_000_000)).toBe(280);
   });
 
-  it('returns 1500ms for the third call when fired at the same instant', () => {
+  it('returns twice the spacing for the third call when fired at the same instant', () => {
     nextGeminiSlot(1_000_000);
     nextGeminiSlot(1_000_000);
-    expect(nextGeminiSlot(1_000_000)).toBe(1500);
+    expect(nextGeminiSlot(1_000_000)).toBe(560);
   });
 
   it('does not impose a wait when the caller is already past the previous slot', () => {
-    nextGeminiSlot(1_000_000); // reserves slot at 1_000_000 + 750
+    nextGeminiSlot(1_000_000); // reserves slot at 1_000_000 + 280
     expect(nextGeminiSlot(1_002_000)).toBe(0);
   });
 
   it('imposes only the residual spacing when the caller is between slots', () => {
-    nextGeminiSlot(1_000_000); // reserves 1_000_750
-    // 200ms after the first call: previous slot lands at 1_000_750, so we
-    // should still wait (1_000_750 - 1_000_200) = 550ms.
-    expect(nextGeminiSlot(1_000_200)).toBe(550);
+    nextGeminiSlot(1_000_000); // reserves 1_000_280
+    // 200ms after the first call: previous slot lands at 1_000_280, so we
+    // should still wait (1_000_280 - 1_000_200) = 80ms.
+    expect(nextGeminiSlot(1_000_200)).toBe(80);
   });
 });

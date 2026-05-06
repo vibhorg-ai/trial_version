@@ -39,12 +39,14 @@ function jsonSnapshot(value: unknown): Prisma.InputJsonValue {
  * within that window the rate-limiter is sensitive to micro-bursts: three
  * sibling Gemini nodes firing in the same 50ms tick all hit Google nearly
  * simultaneously and sometimes one is rejected with 429 before the other two
- * have even reserved their token. Spacing fires by ~750ms gives the limiter
- * time to register each call as separate and avoids spurious 429s on fast
- * runs. We still preserve true parallelism — the second fire kicks off long
- * before the first one finishes (model latency is multiple seconds).
+ * have even reserved their token. A few hundred ms between triggers usually
+ * avoids 429s without adding ~1s+ per sibling on short graphs. Override with
+ * `GEMINI_TRIGGER_SPACING_MS` (integer ms) if your tier still bursts. True
+ * parallelism remains: the next trigger fires long before the prior Gemini
+ * child finishes (model latency is multiple seconds).
  */
-const GEMINI_FIRE_SPACING_MS = 750;
+const GEMINI_FIRE_SPACING_MS =
+  Number.parseInt(process.env.GEMINI_TRIGGER_SPACING_MS ?? '', 10) || 280;
 let nextGeminiFireAt = 0;
 
 /** Get the time we should wait before firing the next Gemini child run. The

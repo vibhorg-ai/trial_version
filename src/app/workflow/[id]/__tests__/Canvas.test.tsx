@@ -39,7 +39,6 @@ vi.mock('reactflow', () => {
       <div data-testid="rf-background" data-variant={variant} data-gap={gap} data-size={size} />
     ),
     BackgroundVariant: { Dots: 'dots', Lines: 'lines' },
-    Controls: () => <div data-testid="rf-controls" />,
     MiniMap: () => <div data-testid="rf-minimap" />,
     applyNodeChanges: (changes: unknown, nodes: unknown[]) => nodes,
     applyEdgeChanges: (changes: unknown, edges: unknown[]) => edges,
@@ -48,6 +47,10 @@ vi.mock('reactflow', () => {
 
 // CSS import
 vi.mock('reactflow/dist/style.css', () => ({}));
+
+vi.mock('../../../../components/canvas/CanvasFooter', () => ({
+  CanvasFooter: () => <div data-testid="canvas-footer-mock" />,
+}));
 
 const baseGraph = {
   schemaVersion: 1 as const,
@@ -106,12 +109,12 @@ afterEach(() => {
 });
 
 describe('Canvas', () => {
-  it('renders the React Flow shell with Background, Controls, MiniMap', () => {
+  it('renders the React Flow shell with Background, MiniMap, and footer chrome', () => {
     render(<Canvas />);
     expect(screen.getByTestId('rf-root')).toBeInTheDocument();
     expect(screen.getByTestId('rf-background')).toHaveAttribute('data-variant', 'dots');
-    expect(screen.getByTestId('rf-controls')).toBeInTheDocument();
     expect(screen.getByTestId('rf-minimap')).toBeInTheDocument();
+    expect(screen.getByTestId('canvas-footer-mock')).toBeInTheDocument();
   });
 
   it('passes the store nodes and edges to React Flow', () => {
@@ -166,14 +169,13 @@ describe('Canvas', () => {
     );
   });
 
-  it('uses dot variant Background with Galaxy-style gap=19 size=0.8', () => {
-    // Values lifted directly from the live Galaxy DOM dump:
-    //   <pattern width="19.17" height="19.17">
-    //     <circle r="0.77" class="fill-[#cacaca]"/>
+  it('uses dot variant Background with Galaxy-style gap=19 and visible dot size', () => {
+    // Galaxy DOM: pattern ~19.17px gap, circle r≈0.77, fill #cacaca. React Flow’s
+    // Background maps dot radius ≈ (size × zoom) / 2 at default offset → size≈1.54 at zoom 1.
     render(<Canvas />);
     const bg = screen.getByTestId('rf-background');
     expect(bg).toHaveAttribute('data-gap', '19');
-    expect(bg).toHaveAttribute('data-size', '0.8');
+    expect(bg).toHaveAttribute('data-size', '1.54');
   });
 
   it('reflects subsequent store updates', () => {

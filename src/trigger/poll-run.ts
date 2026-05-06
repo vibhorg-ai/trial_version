@@ -21,6 +21,9 @@ export interface PollRunOptions {
   pollIntervalMs?: number;
 }
 
+/** Default interval for awaiting child runs — tighter than 1s reduces tail latency once each Trigger task completes. */
+export const DEFAULT_CHILD_RUN_POLL_INTERVAL_MS = 400;
+
 /**
  * Awaits a Trigger.dev child run by polling its status via the public Runs API.
  * Returns a {@link PollRunResult} discriminated union to keep the call site
@@ -30,7 +33,9 @@ export async function pollRunUntilDone<T = unknown>(
   runId: string,
   opts: PollRunOptions = {},
 ): Promise<PollRunResult<T>> {
-  const r = await runs.poll(runId, { pollIntervalMs: opts.pollIntervalMs ?? 1_000 });
+  const r = await runs.poll(runId, {
+    pollIntervalMs: opts.pollIntervalMs ?? DEFAULT_CHILD_RUN_POLL_INTERVAL_MS,
+  });
 
   if (r.isSuccess) {
     return { ok: true, output: r.output as T };

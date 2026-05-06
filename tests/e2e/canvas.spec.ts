@@ -45,6 +45,32 @@ test.describe('Canvas editing', () => {
     expect(Math.abs(after!.x - before!.x - 250)).toBeLessThan(40);
   });
 
+  test('edge dash animation is suspended while a node is dragged (no jitter CSS)', async ({
+    page,
+  }) => {
+    const cropNodes = page.locator('[data-testid="node-shell"]').filter({
+      hasText: /crop image/i,
+    });
+    const node = cropNodes.first();
+    await expect(node).toBeVisible();
+
+    await expect(page.locator('.react-flow__edge.workflow-edge--animated').first()).toBeVisible();
+
+    const box = await node.boundingBox();
+    expect(box).not.toBeNull();
+    await node.hover();
+    await page.mouse.down();
+    await page.mouse.move(box!.x + 120, box!.y + 80, { steps: 8 });
+
+    await expect(page.locator('.react-flow__edge.workflow-edge--animated')).toHaveCount(0);
+
+    await page.mouse.up();
+
+    await expect(page.locator('.react-flow__edge.workflow-edge--animated').first()).toBeVisible({
+      timeout: 5000,
+    });
+  });
+
   test('user can scroll a long Gemini response within the node', async ({ page }) => {
     // Find a Gemini node's output area. We can't trigger a real run from here,
     // but we can verify the output `<p>` exists and has overflow-auto so that

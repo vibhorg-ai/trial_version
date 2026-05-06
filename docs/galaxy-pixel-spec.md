@@ -88,6 +88,38 @@ NextFlow had been using violet (`#8b5cf6`); we switch to indigo to match.
   - text result out: `#6366f1` (indigo-500)
   - (image / vision colors not observed in this workflow)
 
+## Field row & “tab” flow (all LLM / tool nodes)
+
+Galaxy does **not** stack a bold label above every control. Primary inputs use a
+**horizontal flow**:
+
+- Outer row: `flex items-start gap-3`
+- **Label column** (left): `shrink-0 pt-2 text-xs text-gray-500` — muted, not
+  `font-medium text-gray-900`
+- **Control column** (right): `min-w-0 flex-1` — textarea, select, or nested UI
+
+Optional / secondary slots (upload, vision previews, “add item”) sit inside a
+**dashed panel** — not a solid gray card:
+
+- `rounded-lg border border-dashed border-gray-300 bg-[#F5F5F5] px-3 py-2.5`
+- Hover tightens toward the accent: `hover:border-workflow-accent-400`
+
+The **model output** block is separated from inputs by a hard divider:
+
+- `mt-4 border-t border-gray-100 pt-4`
+- Section caption: `mb-1.5 text-xs text-gray-500`
+- Output well: `rounded-lg border border-gray-200 bg-[#F5F5F5] min-h-[120px] p-2`
+- Empty state: centered `text-gray-400` / `py-10` “No output yet”
+
+**Pill tabs** (e.g. “Text to Video” / “Image to Video” on Sora nodes) use:
+
+- Track: `flex w-full rounded-[18px] border border-gray-200 bg-gray-100 p-1`
+- Inactive pill: `flex-1 rounded-[14px] px-3 py-1.5 text-xs font-medium text-gray-500`
+- Active pill: `… bg-gray-900 text-white shadow-md` (dark mode inverts)
+
+NextFlow maps these patterns onto Gemini / Crop / Response via shared layout
+helpers in `src/components/canvas/nodes/galaxy-field-layout.tsx`.
+
 ## Field row (Request-Inputs)
 
 ```html

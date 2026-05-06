@@ -60,20 +60,20 @@ beforeEach(() => {
 });
 
 describe('CropImageNode', () => {
-  it('renders X/Y/W/H with defaults 0/0/100/100', () => {
+  it('renders X/Y/W/H with defaults 0/0/100/100 and matching sliders', () => {
     render(<CropHarness id="crop-1" />);
-    // Galaxy spec uses "(%)" suffix on numeric crop labels — see
-    // docs/galaxy-pixel-spec.md.
-    expect(screen.getByLabelText('X (%)', { selector: 'input' })).toHaveValue(0);
-    expect(screen.getByLabelText('Y (%)', { selector: 'input' })).toHaveValue(0);
-    expect(screen.getByLabelText('Width (%)', { selector: 'input' })).toHaveValue(100);
-    expect(screen.getByLabelText('Height (%)', { selector: 'input' })).toHaveValue(100);
+    expect(screen.getByRole('spinbutton', { name: 'X Position (%)' })).toHaveValue(0);
+    expect(screen.getByRole('spinbutton', { name: 'Y Position (%)' })).toHaveValue(0);
+    expect(screen.getByRole('spinbutton', { name: 'Width (%)' })).toHaveValue(100);
+    expect(screen.getByRole('spinbutton', { name: 'Height (%)' })).toHaveValue(100);
+    expect(screen.getByRole('slider', { name: /X Position \(%\) — slider/ })).toHaveValue('0');
+    expect(screen.getByRole('slider', { name: /Width \(%\) — slider/ })).toHaveValue('100');
   });
 
   it('updates the store when a dimension input changes', async () => {
     const user = userEvent.setup();
     render(<CropHarness id="crop-1" />);
-    const x = screen.getByLabelText('X (%)', { selector: 'input' });
+    const x = screen.getByRole('spinbutton', { name: 'X Position (%)' });
     await user.clear(x);
     await user.type(x, '12');
     const node = useWorkflowStore.getState().nodes.find((n) => n.id === 'crop-1');
@@ -86,7 +86,7 @@ describe('CropImageNode', () => {
   it('clamps dimension values into 0–100', async () => {
     const user = userEvent.setup();
     render(<CropHarness id="crop-1" />);
-    const w = screen.getByLabelText('Width (%)', { selector: 'input' });
+    const w = screen.getByRole('spinbutton', { name: 'Width (%)' });
     await user.clear(w);
     await user.type(w, '150');
     const node = useWorkflowStore.getState().nodes.find((n) => n.id === 'crop-1');
@@ -115,6 +115,9 @@ describe('CropImageNode', () => {
     for (const input of inputs) {
       expect(input).toBeDisabled();
       expect(input).toHaveClass('is-greyed');
+    }
+    for (const slider of screen.getAllByRole('slider')) {
+      expect(slider).toBeDisabled();
     }
   });
 

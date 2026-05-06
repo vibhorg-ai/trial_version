@@ -29,10 +29,12 @@ vi.mock('../Canvas', () => ({
   Canvas: () => <div data-testid="canvas-mock">canvas</div>,
 }));
 
-// Mock next/link to a plain anchor.
+// Mock next/link to a plain anchor (forward aria-label etc. for a11y queries).
 vi.mock('next/link', () => ({
-  default: ({ href, children }: { href: string; children: React.ReactNode }) => (
-    <a href={href}>{children}</a>
+  default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
+    <a href={href} {...rest}>
+      {children}
+    </a>
   ),
 }));
 
@@ -84,6 +86,25 @@ describe('CanvasShell', () => {
     expect(screen.getByText('Test Workflow')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /dashboard/i })).toHaveAttribute('href', '/dashboard');
     expect(screen.getByTestId('canvas-mock')).toBeInTheDocument();
+    expect(screen.getByTestId('workflow-tools-sidebar')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /import workflow from json/i })).toBeInTheDocument();
+  });
+
+  it('toggles the left workflow tools panel', async () => {
+    const user = userEvent.setup();
+    render(
+      <CanvasShell
+        workflowId="wf1"
+        workflowName="Test Workflow"
+        initialGraph={baseGraph}
+        updatedAt="2025-01-01T00:00:00.000Z"
+      />,
+    );
+    const toggle = screen.getByRole('button', { name: /close workflow tools panel/i });
+    await user.click(toggle);
+    expect(screen.getByTestId('workflow-tools-sidebar')).toHaveAttribute('aria-hidden', 'true');
+    await user.click(screen.getByRole('button', { name: /open workflow tools panel/i }));
+    expect(screen.getByTestId('workflow-tools-sidebar')).toHaveAttribute('aria-hidden', 'false');
   });
 
   it('shows a History toggle control', () => {

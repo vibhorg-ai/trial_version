@@ -299,11 +299,8 @@ describe('GeminiNode', () => {
     expect(screen.getByTestId('gemini-output-placeholder')).toHaveTextContent('Generating');
   });
 
-  it('shows the effective Gemini model in the settings dropdown', async () => {
-    const user = userEvent.setup();
+  it('shows the effective Gemini model in the settings dropdown', () => {
     render(<GeminiHarness id="gem-1" />);
-
-    await user.click(screen.getByTestId('toggle-settings'));
 
     expect(screen.getByLabelText('Gemini model')).toHaveValue('gemini-2.5-flash-lite');
     expect(screen.getByRole('option', { name: 'gemini-2.5-flash-lite' })).toBeInTheDocument();

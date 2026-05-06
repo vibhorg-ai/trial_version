@@ -3,6 +3,14 @@ import type { WorkflowNode } from '../schemas/node';
 export type HandleKind = 'text' | 'image' | 'vision-multi' | 'any';
 export type HandleSide = 'input' | 'output';
 
+/** Galaxy-observed handle colours (Tailwind hex) — shared by shell + row handles. */
+export const HANDLE_KIND_HEX: Record<HandleKind, string> = {
+  text: '#6366f1', // indigo-500
+  image: '#22c55e', // green-500
+  'vision-multi': '#f59e0b', // amber-500
+  any: '#a1a1aa', // zinc-400
+};
+
 export interface HandleSpec {
   id: string;
   side: HandleSide;

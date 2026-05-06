@@ -59,6 +59,16 @@ describe('BaseNodeShell', () => {
     expect(screen.getByTestId('handle-out1')).toHaveAttribute('data-position', 'right');
   });
 
+  it('does not render shell handles when embeddedHandles is true', () => {
+    render(
+      <BaseNodeShell title="T" handles={handles} embeddedHandles>
+        <span>body</span>
+      </BaseNodeShell>,
+    );
+    expect(screen.queryByTestId('handle-in1')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('handle-out1')).not.toBeInTheDocument();
+  });
+
   it('applies is-selected when selected', () => {
     render(<BaseNodeShell title="T" handles={[]} selected />);
     expect(screen.getByTestId('node-shell')).toHaveClass('is-selected');

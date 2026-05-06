@@ -8,7 +8,7 @@ vi.mock('@trigger.dev/sdk', () => ({
   runs: { poll: mocks.poll },
 }));
 
-import { pollRunUntilDone } from '../poll-run';
+import { DEFAULT_CHILD_RUN_POLL_INTERVAL_MS, pollRunUntilDone } from '../poll-run';
 
 describe('pollRunUntilDone', () => {
   beforeEach(() => {
@@ -24,7 +24,9 @@ describe('pollRunUntilDone', () => {
 
     const result = await pollRunUntilDone('run_x');
     expect(result).toEqual({ ok: true, output: { hello: 'world' } });
-    expect(mocks.poll).toHaveBeenCalledWith('run_x', { pollIntervalMs: 1_000 });
+    expect(mocks.poll).toHaveBeenCalledWith('run_x', {
+      pollIntervalMs: DEFAULT_CHILD_RUN_POLL_INTERVAL_MS,
+    });
   });
 
   it('forwards a custom poll interval', async () => {

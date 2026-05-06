@@ -24,7 +24,7 @@ import type { CatalogEntry } from './picker/NodeCatalog';
  * The previous implementation rendered a giant violet circle, which is
  * what diverged most visibly from the reference.
  */
-export function BottomToolbar() {
+export function BottomToolbar({ embedded = false }: { embedded?: boolean }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const addNode = useWorkflowStore((s) => s.addNode);
 
@@ -40,32 +40,45 @@ export function BottomToolbar() {
     setPickerOpen(false);
   }
 
+  const inner = (
+    <div className="pointer-events-auto flex items-center gap-1 rounded-full border border-gray-200 bg-white px-2 py-1.5 shadow-md dark:border-zinc-600 dark:bg-zinc-900">
+      <button
+        type="button"
+        aria-label="Add note"
+        title="Add note"
+        disabled
+        className="rounded-lg p-2 text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        <StickyNote aria-hidden className="h-4 w-4" />
+      </button>
+      <button
+        type="button"
+        onClick={() => setPickerOpen(true)}
+        aria-label="Add node"
+        title="Add node"
+        className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
+      >
+        <Plus aria-hidden className="h-4 w-4" />
+      </button>
+    </div>
+  );
+
+  if (embedded) {
+    return (
+      <>
+        <div data-testid="bottom-toolbar">{inner}</div>
+        <NodePicker open={pickerOpen} onClose={() => setPickerOpen(false)} onPick={handlePick} />
+      </>
+    );
+  }
+
   return (
     <>
       <div
         data-testid="bottom-toolbar"
         className="pointer-events-none absolute bottom-4 left-1/2 z-10 -translate-x-1/2"
       >
-        <div className="pointer-events-auto flex items-center gap-1 rounded-xl border border-gray-200 bg-white/95 px-2 py-1.5 shadow-sm backdrop-blur-sm">
-          <button
-            type="button"
-            aria-label="Add note"
-            title="Add note"
-            disabled
-            className="rounded-lg p-2 text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <StickyNote aria-hidden className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setPickerOpen(true)}
-            aria-label="Add node"
-            title="Add node"
-            className="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
-          >
-            <Plus aria-hidden className="h-4 w-4" />
-          </button>
-        </div>
+        {inner}
       </div>
       <NodePicker open={pickerOpen} onClose={() => setPickerOpen(false)} onPick={handlePick} />
     </>

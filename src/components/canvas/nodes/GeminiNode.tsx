@@ -7,6 +7,8 @@ import type { z } from 'zod';
 import { ChevronDown, ChevronRight, Sparkles } from 'lucide-react';
 import { useShallow } from 'zustand/react/shallow';
 import { BaseNodeShell } from './BaseNodeShell';
+import { GalaxyDashedPanel, GalaxyFieldRow, GalaxyOutputSection } from './galaxy-field-layout';
+import { WorkflowAnchoredHandle } from './WorkflowAnchoredHandle';
 import { listHandles } from '../../../lib/dag/handles';
 import type { WorkflowNode } from '../../../lib/schemas/node';
 import { GeminiNodeDataSchema } from '../../../lib/schemas/node';
@@ -58,16 +60,17 @@ export function GeminiNode({ id, data }: NodeProps<GeminiNodeData>) {
   const outputText = nodeRunOutput && nodeRunOutput.kind === 'text' ? nodeRunOutput.text : null;
 
   const [systemOpen, setSystemOpen] = useState(true);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(true);
 
   const wfNode = toWorkflowNode(id, data);
   const handles = listHandles(wfNode);
+  const h = useMemo(() => Object.fromEntries(handles.map((spec) => [spec.id, spec])), [handles]);
 
   const promptGrey = promptConnected;
   const systemGrey = systemConnected;
 
-  const promptClass = `nodrag nowheel w-full min-w-0 resize-y rounded-lg border border-gray-200 bg-[#F5F5F5] px-3 py-2 text-sm text-gray-900 outline-none focus:border-indigo-500 ${promptGrey ? 'is-greyed' : ''}`;
-  const systemClass = `nodrag nowheel w-full min-w-0 resize-y rounded-lg border border-gray-200 bg-[#F5F5F5] px-3 py-2 text-sm text-gray-900 outline-none focus:border-indigo-500 ${systemGrey ? 'is-greyed' : ''}`;
+  const promptClass = `nodrag nowheel w-full min-w-0 resize-y rounded-lg border border-gray-200 bg-[#F5F5F5] p-3 text-sm text-gray-900 outline-none focus:border-indigo-500 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white ${promptGrey ? 'is-greyed' : ''}`;
+  const systemClass = `nodrag nowheel w-full min-w-0 resize-y rounded-lg border-0 bg-transparent p-0 text-sm text-gray-900 outline-none focus:ring-0 disabled:opacity-50 dark:text-white ${systemGrey ? 'is-greyed' : ''}`;
 
   return (
     <BaseNodeShell
@@ -76,105 +79,175 @@ export function GeminiNode({ id, data }: NodeProps<GeminiNodeData>) {
       icon={<Sparkles className="h-4 w-4" aria-hidden />}
       titleWeight="semibold"
       handles={handles}
+      embeddedHandles
       selected={isSelected}
       runStatus={baseShellStatus}
     >
       <div className="space-y-4">
-        <section>
-          <div className="mb-1.5 text-xs font-medium text-gray-900">
-            Prompt<span className="text-red-400">*</span>
-          </div>
-          <textarea
-            aria-label="Gemini prompt"
-            placeholder="Enter text..."
-            rows={3}
-            className={promptClass}
-            disabled={promptGrey}
-            value={data.prompt}
-            onMouseDown={(e) => e.stopPropagation()}
-            onWheel={(e) => e.stopPropagation()}
-            onChange={(e) => updateNodeData(id, { prompt: e.target.value })}
-          />
-        </section>
-
-        <section>
-          <button
-            type="button"
-            data-testid="toggle-system-prompt"
-            className="flex w-full items-center gap-0.5 rounded py-0.5 text-left text-[11px] font-medium text-indigo-600 hover:text-indigo-700"
-            onClick={() => setSystemOpen((o) => !o)}
-          >
-            {systemOpen ? (
-              <ChevronDown className="h-3 w-3 shrink-0" aria-hidden />
-            ) : (
-              <ChevronRight className="h-3 w-3 shrink-0" aria-hidden />
-            )}
-            System prompt
-          </button>
-          {systemOpen ? (
-            <textarea
-              aria-label="Gemini system prompt"
-              placeholder="Enter text..."
-              rows={2}
-              className={`mt-1.5 ${systemClass}`}
-              disabled={systemGrey}
-              value={data.systemPrompt}
-              onMouseDown={(e) => e.stopPropagation()}
-              onWheel={(e) => e.stopPropagation()}
-              onChange={(e) => updateNodeData(id, { systemPrompt: e.target.value })}
-            />
-          ) : null}
-        </section>
-
-        <section
-          data-testid="gemini-vision-section"
-          className="space-y-2 rounded-lg bg-[#F5F5F5] p-3"
-        >
-          <div className="text-xs font-medium text-gray-900">Vision (multi-image)</div>
-          <p className="text-xs text-gray-600" data-testid="vision-count">
-            {visionCount} {visionCount === 1 ? 'image' : 'images'} connected
-          </p>
-          {visionCount > 0 ? (
-            <div data-testid="gemini-vision-thumbs" className="grid grid-cols-3 gap-2">
-              {visionImages.map((img) => (
-                <div
-                  key={img.edgeId}
-                  data-testid="gemini-vision-thumb"
-                  data-source-node-id={img.sourceNodeId}
-                  className="relative aspect-square overflow-hidden rounded-md border border-gray-200 bg-white"
-                >
-                  {img.url ? (
-                    // Use next/image so the optimizer pipes a tiny ~150px
-                    // WebP variant instead of the full multi-MB original.
-                    // `unoptimized` fallback kicks in if the URL host isn't
-                    // whitelisted in next.config.ts, so we never break the
-                    // render even on unexpected CDN domains.
-                    <Image
-                      src={img.url}
-                      alt={`Vision input from ${img.sourceNodeId}`}
-                      fill
-                      sizes="120px"
-                      className="object-cover"
-                      draggable={false}
-                      loading="lazy"
-                      unoptimized={!isOptimizableHost(img.url)}
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-[10px] text-gray-400">
-                      pending…
-                    </div>
-                  )}
-                </div>
-              ))}
+        <section className="relative">
+          {h.prompt ? <WorkflowAnchoredHandle spec={h.prompt} anchor="left" /> : null}
+          <GalaxyFieldRow label="Prompt" required>
+            <div className="relative">
+              <textarea
+                aria-label="Gemini prompt"
+                placeholder="Enter text..."
+                rows={3}
+                className={promptClass}
+                disabled={promptGrey}
+                value={data.prompt}
+                onMouseDown={(e) => e.stopPropagation()}
+                onWheel={(e) => e.stopPropagation()}
+                onChange={(e) => updateNodeData(id, { prompt: e.target.value })}
+              />
             </div>
-          ) : null}
+          </GalaxyFieldRow>
+        </section>
+
+        <section>
+          {systemOpen ? (
+            <>
+              <button
+                type="button"
+                data-testid="toggle-system-prompt"
+                className="nodrag flex w-full items-center gap-0.5 rounded py-0.5 text-left text-[11px] font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
+                onClick={() => setSystemOpen((o) => !o)}
+              >
+                <ChevronDown className="h-3 w-3 shrink-0" aria-hidden />
+                System prompt
+              </button>
+              <div className="relative mt-2">
+                {h.system ? <WorkflowAnchoredHandle spec={h.system} anchor="left" /> : null}
+                <GalaxyDashedPanel
+                  className="hover:border-indigo-400 dark:hover:border-indigo-500"
+                  padded
+                >
+                  <textarea
+                    aria-label="Gemini system prompt"
+                    placeholder="Enter text..."
+                    rows={2}
+                    className={systemClass}
+                    disabled={systemGrey}
+                    value={data.systemPrompt}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onWheel={(e) => e.stopPropagation()}
+                    onChange={(e) => updateNodeData(id, { systemPrompt: e.target.value })}
+                  />
+                </GalaxyDashedPanel>
+              </div>
+            </>
+          ) : (
+            <div className="relative">
+              {h.system ? <WorkflowAnchoredHandle spec={h.system} anchor="left" /> : null}
+              <button
+                type="button"
+                data-testid="toggle-system-prompt"
+                className="nodrag flex w-full items-center gap-0.5 rounded py-0.5 text-left text-[11px] font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
+                onClick={() => setSystemOpen((o) => !o)}
+              >
+                <ChevronRight className="h-3 w-3 shrink-0" aria-hidden />
+                System prompt
+              </button>
+            </div>
+          )}
+        </section>
+
+        <section data-testid="gemini-vision-section" className="relative">
+          {h.vision ? <WorkflowAnchoredHandle spec={h.vision} anchor="left" /> : null}
+          <GalaxyFieldRow label="Vision (multi-image)">
+            <GalaxyDashedPanel
+              padded={visionCount === 0}
+              className="hover:border-indigo-400 dark:hover:border-indigo-500"
+            >
+              <p
+                className="mb-2 text-xs text-gray-600 dark:text-zinc-400"
+                data-testid="vision-count"
+              >
+                {visionCount} {visionCount === 1 ? 'image' : 'images'} connected
+              </p>
+              {visionCount > 0 ? (
+                <div data-testid="gemini-vision-thumbs" className="grid grid-cols-3 gap-2">
+                  {visionImages.map((img) => (
+                    <div
+                      key={img.edgeId}
+                      data-testid="gemini-vision-thumb"
+                      data-source-node-id={img.sourceNodeId}
+                      className="relative aspect-square overflow-hidden rounded-md border border-gray-200 bg-white dark:border-zinc-600"
+                    >
+                      {img.url ? (
+                        <Image
+                          src={img.url}
+                          alt={`Vision input from ${img.sourceNodeId}`}
+                          fill
+                          sizes="120px"
+                          className="object-cover"
+                          draggable={false}
+                          loading="lazy"
+                          unoptimized={!isOptimizableHost(img.url)}
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-[10px] text-gray-400">
+                          pending…
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-center text-xs text-gray-400 dark:text-zinc-500">
+                  Connect image outputs to the Vision handle
+                </p>
+              )}
+            </GalaxyDashedPanel>
+          </GalaxyFieldRow>
+        </section>
+
+        <section className="relative">
+          {h.video ? <WorkflowAnchoredHandle spec={h.video} anchor="left" /> : null}
+          <GalaxyFieldRow label="Video (optional)">
+            <GalaxyDashedPanel
+              padded
+              className="hover:border-indigo-400 dark:hover:border-indigo-500"
+            >
+              <p className="text-center text-xs text-gray-400 dark:text-zinc-500">
+                Connect video outputs when your pipeline provides them
+              </p>
+            </GalaxyDashedPanel>
+          </GalaxyFieldRow>
+        </section>
+
+        <section className="relative">
+          {h.audio ? <WorkflowAnchoredHandle spec={h.audio} anchor="left" /> : null}
+          <GalaxyFieldRow label="Audio (optional)">
+            <GalaxyDashedPanel
+              padded
+              className="hover:border-indigo-400 dark:hover:border-indigo-500"
+            >
+              <p className="text-center text-xs text-gray-400 dark:text-zinc-500">
+                Connect audio outputs when your pipeline provides them
+              </p>
+            </GalaxyDashedPanel>
+          </GalaxyFieldRow>
+        </section>
+
+        <section className="relative">
+          {h.file ? <WorkflowAnchoredHandle spec={h.file} anchor="left" /> : null}
+          <GalaxyFieldRow label="File (optional)">
+            <GalaxyDashedPanel
+              padded
+              className="hover:border-indigo-400 dark:hover:border-indigo-500"
+            >
+              <p className="text-center text-xs text-gray-400 dark:text-zinc-500">
+                Connect file outputs when your pipeline provides them
+              </p>
+            </GalaxyDashedPanel>
+          </GalaxyFieldRow>
         </section>
 
         <section>
           <button
             type="button"
             data-testid="toggle-settings"
-            className="flex w-full items-center gap-0.5 rounded py-0.5 text-left text-[11px] font-medium text-indigo-600 hover:text-indigo-700"
+            className="nodrag flex w-full items-center gap-0.5 rounded py-0.5 text-left text-[11px] font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
             onClick={() => setSettingsOpen((o) => !o)}
           >
             {settingsOpen ? (
@@ -185,40 +258,37 @@ export function GeminiNode({ id, data }: NodeProps<GeminiNodeData>) {
             Settings
           </button>
           {settingsOpen ? (
-            <label className="mt-1.5 flex flex-col gap-1.5 text-xs font-medium text-gray-900">
-              Model
-              <select
-                aria-label="Gemini model"
-                className="rounded-lg border border-gray-200 bg-[#F5F5F5] px-3 py-2 text-sm font-normal text-gray-900 outline-none focus:border-indigo-500"
-                value={data.model}
-                onChange={(e) => updateNodeData(id, { model: e.target.value })}
-              >
-                <option value={DEFAULT_GEMINI_MODEL_ID}>{DEFAULT_GEMINI_MODEL_ID}</option>
-              </select>
-            </label>
+            <div className="mt-2">
+              <GalaxyFieldRow label="Model">
+                <select
+                  aria-label="Gemini model"
+                  className="nodrag w-full rounded-lg border border-gray-200 bg-[#F5F5F5] px-3 py-2 text-sm font-normal text-gray-900 outline-none focus:border-indigo-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-white"
+                  value={data.model}
+                  onChange={(e) => updateNodeData(id, { model: e.target.value })}
+                >
+                  <option value={DEFAULT_GEMINI_MODEL_ID}>{DEFAULT_GEMINI_MODEL_ID}</option>
+                </select>
+              </GalaxyFieldRow>
+            </div>
           ) : null}
         </section>
 
-        <section
-          data-testid="gemini-output-section"
-          className="space-y-2 rounded-lg bg-[#F5F5F5] p-3"
-        >
-          <div className="flex items-center gap-1.5">
-            <span className="min-w-0 flex-1 truncate text-sm text-gray-900">Response</span>
-          </div>
+        <GalaxyOutputSection label="Response">
           <div
-            className={`flex max-h-72 min-h-10 items-start overflow-auto rounded border p-2 text-xs ${
+            data-testid="gemini-output-section"
+            className={`relative flex max-h-72 min-h-[120px] items-start overflow-auto rounded-lg border border-gray-200 bg-[#F5F5F5] p-2 text-xs dark:border-zinc-700 dark:bg-zinc-800 ${
               outputText
-                ? 'border-gray-200 bg-white text-gray-700'
+                ? 'text-gray-700'
                 : nodeRunError
-                  ? 'border-red-200 bg-red-50/80 text-red-700'
-                  : 'border-gray-200 bg-white text-gray-400'
+                  ? 'border-red-200 bg-red-50/80 text-red-700 dark:border-red-900 dark:bg-red-950/40'
+                  : 'text-gray-400 dark:text-zinc-500'
             }`}
           >
+            {h.response ? <WorkflowAnchoredHandle spec={h.response} anchor="right" /> : null}
             {outputText ? (
               <p
                 data-testid="gemini-output"
-                className="nowheel cursor-text select-text whitespace-pre-wrap break-words leading-relaxed"
+                className="nowheel cursor-text select-text whitespace-pre-wrap break-words leading-relaxed text-gray-700 dark:text-zinc-200"
                 onMouseDown={(e) => e.stopPropagation()}
                 onWheel={(e) => e.stopPropagation()}
               >
@@ -234,12 +304,15 @@ export function GeminiNode({ id, data }: NodeProps<GeminiNodeData>) {
                 {nodeRunError}
               </p>
             ) : (
-              <span data-testid="gemini-output-placeholder" className="self-center">
+              <div
+                data-testid="gemini-output-placeholder"
+                className="flex w-full items-center justify-center py-10 text-center"
+              >
                 {nodeRunStatus === 'running' ? 'Generating…' : 'No output yet'}
-              </span>
+              </div>
             )}
           </div>
-        </section>
+        </GalaxyOutputSection>
       </div>
     </BaseNodeShell>
   );

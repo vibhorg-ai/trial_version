@@ -37,7 +37,7 @@
   --background: #ffffff;
   --foreground: #18181b;
 
-  /* Canvas — exact Galaxy values from live DOM */
+  /* Canvas — Galaxy values from live DOM (`galaxy-pixel-spec.md`) */
   --canvas-bg: #f4f4f4;
   --canvas-dot: #cacaca;
 
@@ -87,17 +87,27 @@ body {
   background: var(--canvas-bg);
 }
 
-/* Galaxy-style dashed animated edges */
+/* Galaxy-style dashed edges — animate ONLY when `workflow-edge--animated` is set.
+ * Previously animation lived on `.workflow-edge` unconditionally, so it never
+ * stopped during drags even when `animated: false` was passed (major jitter). */
 .react-flow__edge.workflow-edge .react-flow__edge-path {
   stroke: var(--edge-color);
   stroke-width: 1.5;
   stroke-dasharray: 5 4;
+}
+
+.react-flow__edge.workflow-edge.workflow-edge--animated .react-flow__edge-path {
   animation: edge-flow 0.8s linear infinite;
 }
 
 .react-flow__edge.workflow-edge.selected .react-flow__edge-path {
   stroke: var(--edge-color);
   stroke-width: 2;
+}
+
+/* While a card is being dragged, kill expensive CSS transitions on the shell */
+.react-flow__node.dragging .node-shell {
+  transition: none;
 }
 
 @keyframes edge-flow {
@@ -124,6 +134,21 @@ body {
 .react-flow__handle.workflow-handle:hover {
   box-shadow: 0 0 12px 0 color-mix(in srgb, var(--handle-color, #6366f1) 60%, transparent);
   transform: translate(-50%, -50%) scale(1.12);
+}
+
+/* Row-anchored handles: parent wrapper supplies offset + vertical centering; RF’s
+ * absolute left/top would fight Galaxy’s `!transform-none` pattern. */
+.react-flow__handle.workflow-handle.workflow-handle--anchored {
+  position: relative !important;
+  left: auto !important;
+  top: auto !important;
+  right: auto !important;
+  bottom: auto !important;
+  transform: none !important;
+}
+
+.react-flow__handle.workflow-handle.workflow-handle--anchored:hover {
+  transform: scale(1.12) !important;
 }
 
 /* Node shell — Galaxy uses w-[380px] rounded-xl border shadow-2xl bg-white. */
@@ -200,63 +225,114 @@ select.is-greyed {
   background: #d4d4d8;
 }
 
-/* Canvas dot grid override */
+/* React Flow `<Background />` — dot fill matches Galaxy; layer must not steal pan/zoom */
+.react-flow__background {
+  pointer-events: none;
+}
+
 .react-flow__background svg circle {
   fill: var(--canvas-dot);
 }
 
-/* React Flow controls — Galaxy ships a horizontal pill, but our zoom controls
- * still benefit from a compact vertical stack styled like Galaxy's panel
- * (white/95, rounded-xl, border-gray-200, shadow-sm, backdrop-blur). */
-.react-flow__controls.rf-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  border: 1px solid var(--node-border);
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(6px);
-  margin: 16px;
-}
-
-.react-flow__controls.rf-controls .react-flow__controls-button {
-  width: 32px;
-  height: 32px;
+/* Crop Image — Galaxy-style range (indigo fill left of thumb, grey track right) */
+input[type='range'].crop-range-input {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 1.25rem;
   background: transparent;
-  border: none;
-  border-bottom: 1px solid var(--node-divider);
-  color: #374151; /* text-gray-700 */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: background 0.15s ease;
 }
 
-.react-flow__controls.rf-controls .react-flow__controls-button:last-child {
-  border-bottom: none;
+input[type='range'].crop-range-input:focus {
+  outline: none;
 }
 
-.react-flow__controls.rf-controls .react-flow__controls-button:hover {
-  background: #f3f4f6; /* hover:bg-gray-100 */
-  color: #111827; /* hover:text-gray-900 */
+input[type='range'].crop-range-input:focus-visible {
+  outline: 2px solid var(--workflow-accent-500);
+  outline-offset: 2px;
+  border-radius: 9999px;
 }
 
-.react-flow__controls.rf-controls .react-flow__controls-button svg {
+input[type='range'].crop-range-input::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    var(--workflow-accent-500) 0%,
+    var(--workflow-accent-500) var(--crop-fill, 50%),
+    var(--node-divider) var(--crop-fill, 50%),
+    var(--node-divider) 100%
+  );
+}
+
+input[type='range'].crop-range-input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
   width: 14px;
   height: 14px;
-  fill: currentColor;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: var(--workflow-accent-500);
+  border: 2px solid #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
 }
 
-/* MiniMap — Galaxy renders it inside the same white/95 backdrop-blur panel. */
+input[type='range'].crop-range-input:disabled::-webkit-slider-thumb {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+input[type='range'].crop-range-input::-moz-range-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--node-divider);
+}
+
+input[type='range'].crop-range-input::-moz-range-progress {
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--workflow-accent-500);
+}
+
+input[type='range'].crop-range-input::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--workflow-accent-500);
+  border: 2px solid #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+}
+
+input[type='range'].crop-range-input:disabled::-moz-range-thumb {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.dark input[type='range'].crop-range-input::-webkit-slider-runnable-track {
+  background: linear-gradient(
+    to right,
+    var(--workflow-accent-500) 0%,
+    var(--workflow-accent-500) var(--crop-fill, 50%),
+    #3f3f46 var(--crop-fill, 50%),
+    #3f3f46 100%
+  );
+}
+
+.dark input[type='range'].crop-range-input::-moz-range-track {
+  background: #3f3f46;
+}
+
+/* MiniMap — tucked above the Galaxy-style bottom footer bar. */
 .react-flow__minimap.rf-minimap {
   background: rgba(255, 255, 255, 0.95);
   border: 1px solid var(--node-border);
   border-radius: 12px;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
   backdrop-filter: blur(6px);
   margin: 16px;
+  margin-bottom: 5.5rem;
   overflow: hidden;
 }
 

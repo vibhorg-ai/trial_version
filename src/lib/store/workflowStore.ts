@@ -3,6 +3,7 @@ import { immer } from 'zustand/middleware/immer';
 import type { WorkflowGraph } from '../schemas/workflow';
 import type { WorkflowNode } from '../schemas/node';
 import type { WorkflowEdge } from '../schemas/edge';
+import { layoutCompactPipeline } from '../dag/spread-node-layout';
 import type { NodeOutput } from '../../trigger/types';
 
 const HISTORY_LIMIT = 50;
@@ -180,7 +181,7 @@ export const useWorkflowStore = create<WorkflowState>()(
         state.workflowId = workflowId;
         state.name = name;
         state.updatedAt = updatedAt;
-        state.nodes = graph.nodes;
+        state.nodes = layoutCompactPipeline(graph.nodes, graph.edges);
         state.edges = graph.edges;
         state.past = [];
         state.future = [];
