@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ChevronLeft } from 'lucide-react';
 import { useWorkflowStore } from '../../../lib/store/workflowStore';
 import type { WorkflowGraph } from '../../../lib/schemas/workflow';
+import { Canvas } from './Canvas';
 
 interface CanvasShellProps {
   workflowId: string;
@@ -38,11 +39,8 @@ export function CanvasShell({
         </Link>
         <h1 className="text-lg font-semibold text-zinc-900">{name || workflowName}</h1>
       </header>
-      <div className="flex-1 bg-zinc-50">
-        {/* Canvas mounts here in Task 6.4 */}
-        <div className="flex h-full items-center justify-center text-sm text-zinc-400">
-          Canvas mounts here in upcoming Phase 6 tasks.
-        </div>
+      <div className="flex-1 bg-white">
+        <Canvas />
       </div>
     </div>
   );
