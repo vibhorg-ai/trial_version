@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, waitFor, act, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CanvasShell } from '../CanvasShell';
 import { useWorkflowStore } from '../../../../lib/store/workflowStore';
@@ -43,6 +43,10 @@ beforeEach(() => {
     selectedNodeId: null,
     selectedEdgeId: null,
   });
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 describe('CanvasShell', () => {
@@ -225,5 +229,148 @@ describe('CanvasShell', () => {
     });
     await user.click(screen.getByRole('button', { name: /delete selected/i }));
     expect(removeNode).toHaveBeenCalledWith('gem1');
+  });
+
+  it('export creates a JSON blob matching the current graph', async () => {
+    const createObjectURL = vi.fn(() => 'blob:mock');
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', { createObjectURL, revokeObjectURL });
+
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+    render(
+      <CanvasShell
+        workflowId="wf1"
+        workflowName="Test Workflow"
+        initialGraph={baseGraph}
+        updatedAt="2025-01-01T00:00:00.000Z"
+      />,
+    );
+    await waitFor(() => expect(useWorkflowStore.getState().workflowId).toBe('wf1'));
+    await act(() => {
+      useWorkflowStore.setState({
+        nodes: [
+          {
+            id: 'gem-export',
+            type: 'gemini',
+            position: { x: 0, y: 0 },
+            data: geminiData,
+          },
+        ],
+      });
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: /export workflow as json/i }));
+
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    const blob = createObjectURL.mock.calls[0][0] as Blob;
+    const text = await blob.text();
+    expect(JSON.parse(text)).toEqual(useWorkflowStore.getState().toGraph());
+
+    clickSpy.mockRestore();
+  });
+
+  it('import button triggers the hidden file input click', async () => {
+    const user = userEvent.setup();
+    const inputClickSpy = vi.spyOn(HTMLInputElement.prototype, 'click');
+
+    render(
+      <CanvasShell
+        workflowId="wf1"
+        workflowName="Test Workflow"
+        initialGraph={baseGraph}
+        updatedAt="2025-01-01T00:00:00.000Z"
+      />,
+    );
+    await waitFor(() => expect(useWorkflowStore.getState().workflowId).toBe('wf1'));
+
+    await user.click(screen.getByRole('button', { name: /import workflow from json/i }));
+    expect(inputClickSpy).toHaveBeenCalled();
+
+    inputClickSpy.mockRestore();
+  });
+
+  it('import applies valid JSON graph via hydrate', async () => {
+    const imported = {
+      schemaVersion: 1 as const,
+      nodes: [
+        {
+          id: 'imp-node',
+          type: 'gemini' as const,
+          position: { x: 10, y: 20 },
+          data: geminiData,
+        },
+      ],
+      edges: [] as typeof baseGraph.edges,
+    };
+
+    render(
+      <CanvasShell
+        workflowId="wf1"
+        workflowName="Test Workflow"
+        initialGraph={baseGraph}
+        updatedAt="2025-01-01T00:00:00.000Z"
+      />,
+    );
+    await waitFor(() => expect(useWorkflowStore.getState().workflowId).toBe('wf1'));
+
+    const input = screen.getByLabelText(/import workflow json file/i);
+    const file = new File([JSON.stringify(imported)], 'wf.json', { type: 'application/json' });
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [file] } });
+    });
+
+    await waitFor(() => {
+      expect(useWorkflowStore.getState().nodes).toHaveLength(1);
+      expect(useWorkflowStore.getState().nodes[0]?.id).toBe('imp-node');
+    });
+  });
+
+  it('import shows error toast on JSON parse failure', async () => {
+    render(
+      <CanvasShell
+        workflowId="wf1"
+        workflowName="Test Workflow"
+        initialGraph={baseGraph}
+        updatedAt="2025-01-01T00:00:00.000Z"
+      />,
+    );
+    await waitFor(() => expect(useWorkflowStore.getState().workflowId).toBe('wf1'));
+
+    const input = screen.getByLabelText(/import workflow json file/i);
+    const file = new File(['{ not valid json'], 'bad.json', { type: 'application/json' });
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [file] } });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/^Import failed:/);
+    });
+  });
+
+  it('import shows error toast when schema validation fails', async () => {
+    render(
+      <CanvasShell
+        workflowId="wf1"
+        workflowName="Test Workflow"
+        initialGraph={baseGraph}
+        updatedAt="2025-01-01T00:00:00.000Z"
+      />,
+    );
+    await waitFor(() => expect(useWorkflowStore.getState().workflowId).toBe('wf1'));
+
+    const input = screen.getByLabelText(/import workflow json file/i);
+    const bad = { schemaVersion: 1, nodes: [{ id: 'x' }], edges: [] };
+    const file = new File([JSON.stringify(bad)], 'bad.json', { type: 'application/json' });
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [file] } });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Invalid workflow JSON: schema validation failed',
+      );
+    });
   });
 });
