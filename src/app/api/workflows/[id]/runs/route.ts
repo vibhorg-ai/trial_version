@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server';
 import { RunStartRequestSchema } from '../../../../../lib/schemas/api';
 import { WorkflowGraphSchema } from '../../../../../lib/schemas/workflow';
 import { prisma } from '../../../../../lib/prisma';
-import { logger } from '../../../../../lib/logger';
+import { logger, withRoute } from '../../../../../lib/logger';
 import type { Prisma } from '../../../../../generated/prisma';
 import { RunScope } from '../../../../../generated/prisma';
 
@@ -55,6 +55,11 @@ export async function GET(
       selectedNodeIds: true,
     },
   });
+
+  withRoute('GET /api/workflows/[id]/runs').debug(
+    { workflowId, count: rows.length },
+    'Listed workflow runs for history',
+  );
 
   return NextResponse.json({
     runs: rows.map((r) => ({

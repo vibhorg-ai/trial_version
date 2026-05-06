@@ -2,6 +2,7 @@ import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 
 import { prisma } from '../../../../../lib/prisma';
+import { withRoute } from '../../../../../lib/logger';
 
 export const runtime = 'nodejs';
 
@@ -27,6 +28,11 @@ export async function GET(
     where: { workflowRunId },
     orderBy: { id: 'asc' },
   });
+
+  withRoute('GET /api/runs/[id]/nodes').debug(
+    { workflowRunId, count: nodes.length },
+    'Listed node runs for workflow run',
+  );
 
   return NextResponse.json({
     nodes: nodes.map((n) => ({
