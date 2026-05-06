@@ -36,6 +36,24 @@ export const UpdateWorkflowRequestSchema = z
   );
 export type UpdateWorkflowRequest = z.infer<typeof UpdateWorkflowRequestSchema>;
 
+/** Start a workflow run (`POST /api/workflows/[id]/runs`). `SELECTED` maps to Prisma `RunScope.PARTIAL`. */
+export const RunStartRequestSchema = z
+  .object({
+    scope: z.enum(['FULL', 'SELECTED', 'SINGLE']),
+    selectedNodeIds: z.array(z.string()),
+    inputs: z.record(z.string(), z.unknown()),
+  })
+  .superRefine((data, ctx) => {
+    if (data.scope !== 'FULL' && data.selectedNodeIds.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'selectedNodeIds must be non-empty when scope is SELECTED or SINGLE',
+        path: ['selectedNodeIds'],
+      });
+    }
+  });
+export type RunStartRequest = z.infer<typeof RunStartRequestSchema>;
+
 // ─── Response bodies ────────────────────────────────────────────────────
 export const ListWorkflowsResponseSchema = z.object({
   workflows: z.array(WorkflowSummarySchema),
