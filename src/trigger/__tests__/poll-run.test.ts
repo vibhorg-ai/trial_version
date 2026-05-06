@@ -27,6 +27,7 @@ describe('pollRunUntilDone', () => {
     expect(mocks.poll).toHaveBeenCalledWith('run_x', {
       pollIntervalMs: DEFAULT_CHILD_RUN_POLL_INTERVAL_MS,
     });
+    expect(DEFAULT_CHILD_RUN_POLL_INTERVAL_MS).toBeLessThanOrEqual(400);
   });
 
   it('forwards a custom poll interval', async () => {

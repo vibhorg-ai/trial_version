@@ -60,7 +60,7 @@ export interface PollAssemblyOptions {
   fetchFn?: typeof fetch;
 }
 
-const DEFAULT_INTERVAL_MS = 1_500;
+const DEFAULT_INTERVAL_MS = 750;
 const DEFAULT_TIMEOUT_MS = 90_000;
 
 /**

@@ -4,7 +4,6 @@ import { writeFile } from 'node:fs/promises';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  waitFor: vi.fn(async () => {}),
   spawnFfmpegProcess: vi.fn(),
   removeTmpCalls: [] as string[],
 }));
@@ -14,7 +13,6 @@ vi.mock('@trigger.dev/sdk', () => ({
     id: opts.id,
     run: opts.run,
   }),
-  wait: { for: mocks.waitFor },
   tasks: { trigger: vi.fn(async () => ({ id: 'run_x' })) },
 }));
 
@@ -60,11 +58,16 @@ describe('cropImageTask', () => {
     vi.stubEnv('TRANSLOADIT_AUTH_SECRET', 'secret');
     vi.stubEnv('TRANSLOADIT_AUTH_KEY', 'key');
     vi.stubEnv('FFMPEG_PATH', '/bin/ffmpeg');
-    mocks.waitFor.mockClear();
     mocks.spawnFfmpegProcess.mockClear();
     mocks.removeTmpCalls.length = 0;
     mocks.spawnFfmpegProcess.mockImplementation(emitCloseSoon(0));
     vi.stubGlobal('fetch', vi.fn() as unknown as typeof fetch);
+    // Replace global setTimeout so the mandatory 30s artificial delay does not
+    // hang every test in this suite. Real ffmpeg / fetch / fs are still real.
+    vi.stubGlobal('setTimeout', ((fn: () => void) => {
+      Promise.resolve().then(fn);
+      return 0 as unknown as ReturnType<typeof setTimeout>;
+    }) as unknown as typeof setTimeout);
   });
 
   afterEach(() => {
@@ -72,7 +75,16 @@ describe('cropImageTask', () => {
     vi.unstubAllEnvs();
   });
 
-  it('calls wait.for with at least 30 seconds', async () => {
+  it('schedules a setTimeout of at least 30s before doing any work (mandatory artificial delay)', async () => {
+    // For this single test, re-enable a real-ish setTimeout we can spy on so
+    // we can assert the delay duration without actually waiting 30s.
+    const calls: number[] = [];
+    vi.stubGlobal('setTimeout', ((fn: () => void, ms?: number) => {
+      calls.push(typeof ms === 'number' ? ms : 0);
+      Promise.resolve().then(fn);
+      return 0 as unknown as ReturnType<typeof setTimeout>;
+    }) as unknown as typeof setTimeout);
+
     vi.mocked(fetch).mockResolvedValueOnce({
       ok: true,
       arrayBuffer: async () => new Uint8Array([1]).buffer,
@@ -98,8 +110,7 @@ describe('cropImageTask', () => {
       { ctx: {} } as never,
     );
 
-    const waitCalls = mocks.waitFor.mock.calls as unknown as Array<[{ seconds: number }]>;
-    expect(waitCalls[0][0].seconds).toBeGreaterThanOrEqual(30);
+    expect(calls[0]).toBeGreaterThanOrEqual(30_000);
   });
 
   it('spawns ffmpeg with a percent-based crop filter built from payload', async () => {

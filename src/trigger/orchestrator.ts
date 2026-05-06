@@ -46,7 +46,7 @@ function jsonSnapshot(value: unknown): Prisma.InputJsonValue {
  * child finishes (model latency is multiple seconds).
  */
 const GEMINI_FIRE_SPACING_MS =
-  Number.parseInt(process.env.GEMINI_TRIGGER_SPACING_MS ?? '', 10) || 280;
+  Number.parseInt(process.env.GEMINI_TRIGGER_SPACING_MS ?? '', 10) || 150;
 let nextGeminiFireAt = 0;
 
 /** Get the time we should wait before firing the next Gemini child run. The

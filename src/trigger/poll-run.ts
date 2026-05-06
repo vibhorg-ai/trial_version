@@ -21,8 +21,8 @@ export interface PollRunOptions {
   pollIntervalMs?: number;
 }
 
-/** Default interval for awaiting child runs — tighter than 1s reduces tail latency once each Trigger task completes. */
-export const DEFAULT_CHILD_RUN_POLL_INTERVAL_MS = 400;
+/** Default interval for awaiting child runs. Tight enough to keep tail latency low after each Trigger task completes; the SDK's `runs.poll` is a cheap GET so 200ms is comfortable. */
+export const DEFAULT_CHILD_RUN_POLL_INTERVAL_MS = 200;
 
 /**
  * Awaits a Trigger.dev child run by polling its status via the public Runs API.
