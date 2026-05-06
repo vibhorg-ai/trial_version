@@ -21,6 +21,7 @@ import { RequestInputsNode } from '../../../components/canvas/nodes/RequestInput
 import { CropImageNode } from '../../../components/canvas/nodes/CropImageNode';
 import { GeminiNode } from '../../../components/canvas/nodes/GeminiNode';
 import { ResponseNode } from '../../../components/canvas/nodes/ResponseNode';
+import { BottomToolbar } from '../../../components/canvas/BottomToolbar';
 
 const NODE_TYPES = {
   'request-inputs': RequestInputsNode,
@@ -215,6 +216,7 @@ export function Canvas() {
           zoomable
         />
       </ReactFlow>
+      <BottomToolbar />
       {connectError ? (
         <div
           role="alert"
