@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { task } from '@trigger.dev/sdk';
 
+import { buildGeminiModelAttemptOrder } from '../lib/gemini-model';
 import type { GeminiTaskPayload, GeminiTaskResult } from './types';
 
 /** Floor we apply to `maxOutputTokens` regardless of node config — gives the
@@ -140,15 +141,7 @@ export const geminiTask = task({
 
     const genAI = new GoogleGenerativeAI(apiKey);
     const effectiveMaxTokens = Math.max(payload.maxOutputTokens, MIN_MAX_OUTPUT_TOKENS);
-    const model = genAI.getGenerativeModel({
-      model: payload.model,
-      systemInstruction: payload.systemPrompt,
-      generationConfig: {
-        temperature: payload.temperature,
-        maxOutputTokens: effectiveMaxTokens,
-        topP: payload.topP,
-      },
-    });
+    const modelIds = buildGeminiModelAttemptOrder(payload.model);
 
     const imageParts = await Promise.all(
       payload.visionImageUrls.map(async (url) => {
@@ -169,21 +162,48 @@ export const geminiTask = task({
       ...imageParts,
     ];
 
-    const result = await generateContentWithRateLimitRetry(() => model.generateContent(parts));
-    const text = result.response.text();
-    const finishReason = result.response.candidates?.[0]?.finishReason;
+    let lastQuotaErr: unknown;
+    for (let i = 0; i < modelIds.length; i++) {
+      const modelId = modelIds[i]!;
+      const model = genAI.getGenerativeModel({
+        model: modelId,
+        systemInstruction: payload.systemPrompt,
+        generationConfig: {
+          temperature: payload.temperature,
+          maxOutputTokens: effectiveMaxTokens,
+          topP: payload.topP,
+        },
+      });
 
-    // If the model ran out of tokens before completing, surface a clear error
-    // instead of returning a partial sentence that downstream nodes will then
-    // misinterpret. The user sees "Gemini hit MAX_TOKENS — bump
-    // maxOutputTokens." in the failure pill.
-    if (!text && finishReason === 'MAX_TOKENS') {
-      throw new Error(
-        `Gemini stopped at MAX_TOKENS without producing any text (limit=${effectiveMaxTokens}). ` +
-          `Increase the node's maxOutputTokens or switch to a non-thinking model.`,
-      );
+      try {
+        const result = await generateContentWithRateLimitRetry(() => model.generateContent(parts));
+        const text = result.response.text();
+        const finishReason = result.response.candidates?.[0]?.finishReason;
+
+        // If the model ran out of tokens before completing, surface a clear error
+        // instead of returning a partial sentence that downstream nodes will then
+        // misinterpret. The user sees "Gemini hit MAX_TOKENS — bump
+        // maxOutputTokens." in the failure pill.
+        if (!text && finishReason === 'MAX_TOKENS') {
+          throw new Error(
+            `Gemini stopped at MAX_TOKENS without producing any text (limit=${effectiveMaxTokens}). ` +
+              `Increase the node's maxOutputTokens or switch to a non-thinking model.`,
+          );
+        }
+
+        return { kind: 'text', text };
+      } catch (err) {
+        const retryableQuota = parseRateLimitRetryDelay(err) !== null;
+        if (!retryableQuota) throw err;
+        lastQuotaErr = err;
+        if (i === modelIds.length - 1) break;
+      }
     }
 
-    return { kind: 'text', text };
+    const msg =
+      lastQuotaErr instanceof Error ? lastQuotaErr.message : String(lastQuotaErr ?? 'unknown');
+    throw new Error(
+      `Gemini exhausted free-tier retries on ${modelIds.length} model(s) (${modelIds.join(' → ')}). Last error: ${msg.split('\n')[0]}`,
+    );
   },
 });

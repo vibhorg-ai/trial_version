@@ -251,16 +251,38 @@ describe('geminiTask', () => {
     expect(genAiMocks.mockGenerateContent).toHaveBeenCalledTimes(1);
   });
 
-  it('gives up after max rate-limit retry attempts and surfaces a clear message', async () => {
+  it('switches to the next fallback model after exhausting retries on the first', async () => {
+    const rateLimitErr = new Error(`429 Too Many Requests RESOURCE_EXHAUSTED retryDelay: "0s"`);
+    genAiMocks.mockGenerateContent
+      .mockRejectedValueOnce(rateLimitErr)
+      .mockRejectedValueOnce(rateLimitErr)
+      .mockRejectedValueOnce(rateLimitErr)
+      .mockRejectedValueOnce(rateLimitErr)
+      .mockResolvedValueOnce({ response: { text: () => 'via fallback model' } });
+
+    const out = await runGemini.run(basePayload, { ctx: {} } as never);
+
+    expect(out).toEqual({ kind: 'text', text: 'via fallback model' });
+    expect(genAiMocks.mockGenerateContent).toHaveBeenCalledTimes(5);
+    expect(genAiMocks.mockGetGenerativeModel).toHaveBeenCalledTimes(2);
+    expect(genAiMocks.mockGetGenerativeModel.mock.calls[0]![0]).toMatchObject({
+      model: 'gemini-2.5-flash-lite',
+    });
+    expect(genAiMocks.mockGetGenerativeModel.mock.calls[1]![0]).toMatchObject({
+      model: 'gemini-3.1-flash-lite',
+    });
+  }, 15_000);
+
+  it('gives up after quota retries on every model in the chain', async () => {
     const rateLimitErr = new Error(`429 Too Many Requests RESOURCE_EXHAUSTED retryDelay: "0s"`);
     genAiMocks.mockGenerateContent.mockRejectedValue(rateLimitErr);
 
     await expect(runGemini.run(basePayload, { ctx: {} } as never)).rejects.toThrow(
-      /Gemini rate-limited \(429\) after \d+ retry attempt/,
+      /Gemini exhausted free-tier retries on 3 model/,
     );
-    // 1 initial + MAX_RATE_LIMIT_ATTEMPTS (3) retries
-    expect(genAiMocks.mockGenerateContent).toHaveBeenCalledTimes(4);
-  }, 15_000);
+    // 3 models × (1 initial + 3 retries) = 12 calls
+    expect(genAiMocks.mockGenerateContent).toHaveBeenCalledTimes(12);
+  }, 60_000);
 
   it('does not retry on non-retryable 4xx responses', async () => {
     vi.mocked(fetch).mockResolvedValue({
