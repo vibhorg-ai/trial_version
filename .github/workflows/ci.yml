@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECT_URL: ${{ secrets.DIRECT_URL }}
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.CLERK_PUBLISHABLE_KEY }}
+      CLERK_SECRET_KEY: ${{ secrets.CLERK_SECRET_KEY }}
+      GOOGLE_AI_API_KEY: ${{ secrets.GOOGLE_AI_API_KEY }}
+      TRANSLOADIT_AUTH_KEY: ${{ secrets.TRANSLOADIT_AUTH_KEY }}
+      TRANSLOADIT_AUTH_SECRET: ${{ secrets.TRANSLOADIT_AUTH_SECRET }}
+      TRIGGER_SECRET_KEY: ${{ secrets.TRIGGER_SECRET_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - name: Install
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Unit tests
+        run: npm run test
+      - name: Integration tests
+        run: npm run test:integration
+        # Allow integration tests to be skipped if DATABASE_URL secret isn't set in the environment.
+        if: env.DATABASE_URL != ''
+      - name: Build
+        run: npm run build
