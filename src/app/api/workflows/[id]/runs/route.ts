@@ -17,9 +17,55 @@ const NOT_FOUND_BODY = { error: 'Workflow not found' } as const;
 
 const IDEMPOTENCY_WINDOW_MS = 10 * 60 * 1000;
 
+const RUN_HISTORY_LIMIT = 50;
+
 function apiScopeToPrisma(scope: 'FULL' | 'SELECTED' | 'SINGLE'): RunScope {
   if (scope === 'SELECTED') return RunScope.PARTIAL;
   return scope === 'FULL' ? RunScope.FULL : RunScope.SINGLE;
+}
+
+export async function GET(
+  _req: Request,
+  ctx: { params: Promise<{ id: string }> },
+): Promise<NextResponse> {
+  const { userId } = await auth();
+  if (!userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const { id: workflowId } = await ctx.params;
+
+  const workflow = await prisma.workflow.findFirst({
+    where: { id: workflowId, userId },
+  });
+  if (!workflow) {
+    return NextResponse.json(NOT_FOUND_BODY, { status: 404 });
+  }
+
+  const rows = await prisma.workflowRun.findMany({
+    where: { workflowId, userId },
+    orderBy: { startedAt: 'desc' },
+    take: RUN_HISTORY_LIMIT,
+    select: {
+      id: true,
+      status: true,
+      scope: true,
+      startedAt: true,
+      finishedAt: true,
+      selectedNodeIds: true,
+    },
+  });
+
+  return NextResponse.json({
+    runs: rows.map((r) => ({
+      id: r.id,
+      status: r.status,
+      scope: r.scope,
+      startedAt: r.startedAt.toISOString(),
+      finishedAt: r.finishedAt ? r.finishedAt.toISOString() : null,
+      selectedNodeIds: r.selectedNodeIds,
+    })),
+  });
 }
 
 export async function POST(
@@ -83,7 +129,7 @@ export async function POST(
           startedAt: { gte: cutoff },
         },
         orderBy: { startedAt: 'desc' },
-        take: 50,
+        take: RUN_HISTORY_LIMIT,
       });
       const hit = candidates.find((r) => {
         const snap = r.inputsSnapshot as { __idempotencyKey?: string };
