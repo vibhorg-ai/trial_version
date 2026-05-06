@@ -6,6 +6,7 @@ import { ChevronLeft, Trash2 } from 'lucide-react';
 import { useWorkflowStore } from '../../../lib/store/workflowStore';
 import type { WorkflowGraph } from '../../../lib/schemas/workflow';
 import { Canvas } from './Canvas';
+import { useCanvasKeyboard } from './useCanvasKeyboard';
 
 interface CanvasShellProps {
   workflowId: string;
@@ -48,6 +49,8 @@ export function CanvasShell({
   useEffect(() => {
     hydrate({ workflowId, name: workflowName, graph: initialGraph, updatedAt });
   }, [hydrate, workflowId, workflowName, initialGraph, updatedAt]);
+
+  useCanvasKeyboard();
 
   return (
     <div className="flex h-screen flex-col">
