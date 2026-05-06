@@ -12,6 +12,10 @@ vi.mock('../../../../components/canvas/RunButton', () => ({
   RunButton: () => null,
 }));
 
+vi.mock('../../../../components/canvas/RealtimeBridge', () => ({
+  RealtimeBridge: () => null,
+}));
+
 // Mock the Canvas to avoid React Flow.
 vi.mock('../Canvas', () => ({
   Canvas: () => <div data-testid="canvas-mock">canvas</div>,

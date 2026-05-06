@@ -7,6 +7,7 @@ import { useWorkflowStore } from '../../../lib/store/workflowStore';
 import { WorkflowGraphSchema, type WorkflowGraph } from '../../../lib/schemas/workflow';
 import { Canvas } from './Canvas';
 import { RunButton } from '../../../components/canvas/RunButton';
+import { RealtimeBridge } from '../../../components/canvas/RealtimeBridge';
 import { useCanvasKeyboard } from './useCanvasKeyboard';
 import { useAutoSave } from './useAutoSave';
 
@@ -188,6 +189,7 @@ export function CanvasShell({
           {importError}
         </div>
       ) : null}
+      <RealtimeBridge />
       <div className="flex-1 bg-white">
         <Canvas />
       </div>
