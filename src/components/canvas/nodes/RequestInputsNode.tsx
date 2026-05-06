@@ -9,6 +9,7 @@ import { listHandles } from '../../../lib/dag/handles';
 import type { WorkflowNode } from '../../../lib/schemas/node';
 import { RequestInputsNodeDataSchema } from '../../../lib/schemas/node';
 import { useWorkflowStore } from '../../../lib/store/workflowStore';
+import { TransloaditUpload } from './TransloaditUpload';
 
 type RequestInputsNodeData = z.infer<typeof RequestInputsNodeDataSchema>;
 
@@ -98,12 +99,21 @@ export function RequestInputsNode({ id, data, selected }: NodeProps<RequestInput
                 }}
               />
             ) : (
-              <div
-                data-testid="image-field-placeholder"
-                className="rounded border border-dashed border-zinc-300 bg-white px-2 py-3 text-center text-xs text-zinc-500"
-              >
-                Upload (Transloadit) — wired in Task 7.8
-              </div>
+              <TransloaditUpload
+                value={field.value}
+                onUpload={(url) => {
+                  const fields = data.fields.map((f, i) =>
+                    i === index && f.fieldType === 'image_field' ? { ...f, value: url } : f,
+                  );
+                  updateNodeData(id, { fields });
+                }}
+                onClear={() => {
+                  const fields = data.fields.map((f, i) =>
+                    i === index && f.fieldType === 'image_field' ? { ...f, value: null } : f,
+                  );
+                  updateNodeData(id, { fields });
+                }}
+              />
             )}
           </div>
         ))}

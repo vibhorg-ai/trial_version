@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { RequestInputsNode } from '../RequestInputsNode';
 import { useWorkflowStore } from '../../../../lib/store/workflowStore';
@@ -85,9 +85,52 @@ describe('RequestInputsNode', () => {
     expect(ta).toHaveValue('hello');
   });
 
-  it('renders the image field placeholder', () => {
+  it('renders Transloadit upload for image_field rows', () => {
     render(<RequestInputsHarness id="req-1" />);
-    expect(screen.getAllByTestId('image-field-placeholder')).toHaveLength(1);
+    const row = screen.getByTestId('request-field-row-product_image');
+    expect(within(row).getByTestId('transloadit-image-upload')).toBeInTheDocument();
+    expect(screen.queryByTestId('image-field-placeholder')).toBeNull();
+  });
+
+  it('updates image field value in the store after a successful upload', async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(JSON.stringify({ params: '{"a":1}', signature: 'sha384:aa' }), {
+            status: 200,
+          }),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              results: { ':original': [{ ssl_url: 'https://cdn.example.com/out.png' }] },
+            }),
+            { status: 200 },
+          ),
+        ),
+    );
+
+    render(<RequestInputsHarness id="req-1" />);
+    const row = screen.getByTestId('request-field-row-product_image');
+    const input = within(row).getByLabelText('Choose image file');
+    await user.upload(input, new File(['x'], 'pic.png', { type: 'image/png' }));
+
+    await waitFor(() => {
+      const node = useWorkflowStore.getState().nodes.find((n) => n.id === 'req-1');
+      expect(node?.type).toBe('request-inputs');
+      if (node?.type === 'request-inputs') {
+        const imgField = node.data.fields.find((f) => f.name === 'product_image');
+        expect(imgField?.fieldType).toBe('image_field');
+        if (imgField?.fieldType === 'image_field') {
+          expect(imgField.value).toBe('https://cdn.example.com/out.png');
+        }
+      }
+    });
+
+    vi.unstubAllGlobals();
   });
 
   it('appends a text field when Add text field is chosen', async () => {
