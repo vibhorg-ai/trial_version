@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "cross-env NODE_OPTIONS=\"--use-system-ca\" next dev --turbopack",
     "build": "cross-env NODE_OPTIONS=\"--use-system-ca\" next build --turbopack",
+    "vercel-build": "prisma migrate deploy && npm run build",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
